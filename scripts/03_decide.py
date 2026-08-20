@@ -102,7 +102,8 @@ def main() -> None:
     model_row = policies.loc[f"模型導向（t*={t_star:.4f}）"]
     saving = model_row["節省比例"]
     verdict = "模型導向策略勝出" if saving > 0 else "模型導向策略沒有勝出"
-    print(f"\n  {verdict}：相較最佳基準策略，每批成本變化 {saving:+.1%}")
+    move = f"下降 {saving:.1%}" if saving > 0 else f"上升 {-saving:.1%}"
+    print(f"\n  {verdict}：相較最佳基準策略，每批成本{move}")
 
     at_t = evaluate.at_threshold(split.y_test, p_test, t_star)
     print(f"  混淆矩陣  TP={at_t['tp']} FP={at_t['fp']} FN={at_t['fn']} TN={at_t['tn']}"
@@ -205,7 +206,8 @@ def write_summary(cfg, split, policies, at_t, best_free, best_cap, oracle, be, s
     lines += [
         "",
         f"**結論：{'模型導向策略勝出' if win else '模型導向策略在目前成本假設下未勝出'}**"
-        f"，相較最佳基準策略每批成本變化 **{m['節省比例']:+.1%}**"
+        f"，相較最佳基準策略每批成本"
+        f"**{'下降' if win else '上升'} {abs(m['節省比例']):.1%}**"
         f"（{m['cost_per_lot']:,.0f} vs {min(none_row['cost_per_lot'], all_row['cost_per_lot']):,.0f} {cur}）。",
         "",
         f"門檻下的混淆矩陣：TP={at_t['tp']}、FP={at_t['fp']}、FN={at_t['fn']}、TN={at_t['tn']}"

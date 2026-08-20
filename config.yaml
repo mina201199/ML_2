@@ -1,0 +1,62 @@
+# SECOM 良率預警 — 專題設定檔
+#
+# 所有實驗參數集中在這裡，程式碼不寫死任何數字。
+# 面試官問「這個門檻怎麼來的」時，你要能指著這個檔案回答。
+
+seed: 42
+
+data:
+  # UCI 直接下載，不需要 Kaggle API token
+  feature_url: "https://archive.ics.uci.edu/ml/machine-learning-databases/secom/secom.data"
+  label_url: "https://archive.ics.uci.edu/ml/machine-learning-databases/secom/secom_labels.data"
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+
+split:
+  # 時序切分，不是隨機切分。製程會漂移，隨機切分等於讓模型偷看未來。
+  method: "time"
+  train_frac: 0.60
+  val_frac: 0.20      # 早停 + 校準 + 選門檻
+  test_frac: 0.20     # 只碰一次
+
+preprocess:
+  drop_constant: true          # 116 個零變異欄位
+  max_missing_frac: 0.50       # 缺值超過五成的欄位丟掉（僅依 train 決定）
+  corr_threshold: null         # 設 0.95 可啟用共線性剔除；null = 不做
+
+model:
+  # LightGBM 原生支援 NaN，所以主模型不做填補（這本身是個賣點）
+  lgbm:
+    n_estimators: 1500         # 上限；實際棵數由下面的 CV 決定
+    learning_rate: 0.05
+    num_leaves: 15
+    min_child_samples: 20
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.3      # 590 維，每棵樹只看一小部分
+    reg_lambda: 5.0
+
+  # 樹的棵數用 train 內部的擴張窗 CV 決定，不用 val。
+  # 原因：val 只有 11 個 fail，PR-AUC 在這個樣本量下抖得沒有意義
+  #（早停曾經停在第 1 棵樹）。把 val 留給校準與選門檻，一份資料只做一件事。
+  cv:
+    n_splits: 3
+    early_stopping_rounds: 60
+    metric: "auc"              # 早停用 AUC（穩定），報告用 PR-AUC（對的業務指標）
+    min_estimators: 10         # 只防「CV 崩到 1~2 棵」的病態情況，binding 時會印警告
+
+  calibration: "sigmoid"       # Platt scaling，只有兩個參數，在小 val 上比 isotonic 安全
+
+# ── 成本模型：這一段是整個專題的核心差異化 ──
+# 情境：模型在最終測試前對每一批下「要不要加驗」的決策。
+# 這些是示意值，重點不是絕對數字，而是敏感度分析與損益兩平比。
+cost:
+  currency: "TWD"
+  c_inspect: 2000        # 每批加驗／攔停／複測的成本
+  c_escape: 60000        # 一批壞品流到客戶端的成本（RMA、報廢、賠償、商譽）
+  # 產能約束：產線一天只驗得動這麼多比例的批次
+  inspect_capacity_frac: 0.20
+
+report:
+  figures_dir: "reports/figures"
+  top_n_features: 20

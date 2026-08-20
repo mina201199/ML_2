@@ -1,0 +1,15 @@
+{
+  "n_rows": 1567,
+  "n_features": 590,
+  "n_fail": 104,
+  "n_pass": 1463,
+  "fail_rate": 0.06636885768985322,
+  "imbalance_ratio": 14.067307692307692,
+  "n_missing_cells": 41951,
+  "missing_frac": 0.04537548808583821,
+  "n_constant_cols": 116,
+  "n_cols_over_half_missing": 28,
+  "ts_from": "2008-07-19 11:55:00",
+  "ts_to": "2008-10-17 06:07:00",
+  "span_days": 89
+}

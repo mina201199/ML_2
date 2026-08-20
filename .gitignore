@@ -1,0 +1,30 @@
+# 資料不進版控，用 scripts/01_build_data.py 重建
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+
+# 產出物：圖表與報告要進版控，否則 GitHub 上的 README 圖片是破的
+# （這個 repo 是作品集，README 能不能顯示圖片直接決定第一印象）
+models/*.pkl
+models/*.txt
+!models/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# OS / 編輯器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 個人文件：不進作品集 repo
+ML_2.docx
+~$*.docx

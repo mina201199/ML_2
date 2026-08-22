@@ -172,6 +172,64 @@ def optimal_flag_rate(
     return best
 
 
+def conservative_base_rate(n_fail: int, n: int, conf: float = 0.95) -> float:
+    """基準率的保守上界（Clopper-Pearson 單邊）。
+
+    為什麼需要這個 —— 這是滾動回測揭露的真正病灶。
+
+    在成本比 r 之下，「放行 vs 加驗」的分界是 r × p = 1，也就是 r=30 時
+    p = 3.33%。而本資料的校準窗實測基準率是 2.55%、3.40%、2.98%、8.51%
+    —— 有三個窗剛好壓在分界線上。等於整個決策是被 6~8 個雜訊正樣本決定的。
+
+    實測後果：某一折的校準窗看到 3.0% 就選了「一批都不驗」，
+    結果下一段的 fail 率跳到 9.7%，成本比全檢還高 190%。
+
+    修法是承認基準率本身有估計誤差，並在成本不對稱的方向上保守：
+    用上界而非點估計。正樣本越少，上界拉得越高，policy 就越傾向多驗 ——
+    這正是「資訊不足時該保守」的正確行為。
+    """
+    from scipy.stats import beta
+
+    if n == 0:
+        return 1.0
+    if n_fail >= n:
+        return 1.0
+    return float(beta.ppf(conf, n_fail + 1, n - n_fail))
+
+
+def robust_flag_rate(
+    y_true,
+    y_score,
+    c_inspect: float,
+    c_escape: float,
+    capacity_frac: float | None = None,
+    conf: float = 0.95,
+    grid: int = 101,
+) -> dict:
+    """在基準率不確定性下選最佳加驗比例。
+
+    做法：把流出成本按 `保守上界 / 點估計` 的比例放大，再做一般的成本最佳化。
+
+    直覺：如果真實的壞品率可能比我在校準窗看到的高 λ 倍，那我漏放的期望件數
+    也會是 λ 倍，所以決策時應該用放大後的流出成本。λ 由樣本量決定 ——
+    正樣本越少，λ 越大，越傾向多驗。樣本足夠時 λ → 1，退回一般解。
+    """
+    y_true = np.asarray(y_true)
+    n, n_fail = len(y_true), int(y_true.sum())
+    p_hat = n_fail / n if n else 0.0
+    p_up = conservative_base_rate(n_fail, n, conf)
+    lam = (p_up / p_hat) if p_hat > 0 else 1.0
+
+    best = optimal_flag_rate(
+        y_true, y_score, c_inspect, c_escape * lam, capacity_frac, grid
+    )
+    best = dict(best)
+    best["base_rate_observed"] = p_hat
+    best["base_rate_upper"] = p_up
+    best["escape_inflation"] = lam
+    return best
+
+
 def sensitivity(
     y_true,
     y_score,

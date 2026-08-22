@@ -1,0 +1,193 @@
+{
+  "profile": [
+    {
+      "n_lots": 1567,
+      "n_fail": 104.0,
+      "n_pass": 1463.0,
+      "fail_rate": 0.066369,
+      "imbalance_ratio": 14.07,
+      "ts_from": "2008-07-19 11:55:00",
+      "ts_to": "2008-10-17 06:07:00",
+      "span_days": 90
+    }
+  ],
+  "drift": [
+    {
+      "week": "2008-07-14",
+      "n_lots": 13,
+      "n_fail": 3.0,
+      "fail_rate": 0.2308,
+      "vs_overall": 3.48,
+      "fail_rate_ma4": 0.2308
+    },
+    {
+      "week": "2008-07-21",
+      "n_lots": 21,
+      "n_fail": 2.0,
+      "fail_rate": 0.0952,
+      "vs_overall": 1.43,
+      "fail_rate_ma4": 0.163
+    },
+    {
+      "week": "2008-07-28",
+      "n_lots": 48,
+      "n_fail": 10.0,
+      "fail_rate": 0.2083,
+      "vs_overall": 3.14,
+      "fail_rate_ma4": 0.1781
+    },
+    {
+      "week": "2008-08-04",
+      "n_lots": 108,
+      "n_fail": 14.0,
+      "fail_rate": 0.1296,
+      "vs_overall": 1.95,
+      "fail_rate_ma4": 0.166
+    },
+    {
+      "week": "2008-08-11",
+      "n_lots": 51,
+      "n_fail": 7.0,
+      "fail_rate": 0.1373,
+      "vs_overall": 2.07,
+      "fail_rate_ma4": 0.1426
+    },
+    {
+      "week": "2008-08-18",
+      "n_lots": 208,
+      "n_fail": 22.0,
+      "fail_rate": 0.1058,
+      "vs_overall": 1.59,
+      "fail_rate_ma4": 0.1452
+    },
+    {
+      "week": "2008-08-25",
+      "n_lots": 169,
+      "n_fail": 7.0,
+      "fail_rate": 0.0414,
+      "vs_overall": 0.62,
+      "fail_rate_ma4": 0.1035
+    },
+    {
+      "week": "2008-09-01",
+      "n_lots": 133,
+      "n_fail": 2.0,
+      "fail_rate": 0.015,
+      "vs_overall": 0.23,
+      "fail_rate_ma4": 0.0749
+    },
+    {
+      "week": "2008-09-08",
+      "n_lots": 95,
+      "n_fail": 4.0,
+      "fail_rate": 0.0421,
+      "vs_overall": 0.63,
+      "fail_rate_ma4": 0.0511
+    },
+    {
+      "week": "2008-09-15",
+      "n_lots": 154,
+      "n_fail": 5.0,
+      "fail_rate": 0.0325,
+      "vs_overall": 0.49,
+      "fail_rate_ma4": 0.0328
+    },
+    {
+      "week": "2008-09-22",
+      "n_lots": 166,
+      "n_fail": 4.0,
+      "fail_rate": 0.0241,
+      "vs_overall": 0.36,
+      "fail_rate_ma4": 0.0284
+    },
+    {
+      "week": "2008-09-29",
+      "n_lots": 169,
+      "n_fail": 15.0,
+      "fail_rate": 0.0888,
+      "vs_overall": 1.34,
+      "fail_rate_ma4": 0.0469
+    },
+    {
+      "week": "2008-10-06",
+      "n_lots": 138,
+      "n_fail": 8.0,
+      "fail_rate": 0.058,
+      "vs_overall": 0.87,
+      "fail_rate_ma4": 0.0508
+    },
+    {
+      "week": "2008-10-13",
+      "n_lots": 94,
+      "n_fail": 1.0,
+      "fail_rate": 0.0106,
+      "vs_overall": 0.16,
+      "fail_rate_ma4": 0.0454
+    }
+  ],
+  "missingness_top": [
+    {
+      "feature": "f090",
+      "missing_frac": 0.0325,
+      "fail_when_missing": 0.0196,
+      "fail_when_present": 0.0679,
+      "gap": 0.0483
+    },
+    {
+      "feature": "f519",
+      "missing_frac": 0.4563,
+      "fail_when_missing": 0.0462,
+      "fail_when_present": 0.0833,
+      "gap": 0.0372
+    },
+    {
+      "feature": "f247",
+      "missing_frac": 0.4563,
+      "fail_when_missing": 0.0462,
+      "fail_when_present": 0.0833,
+      "gap": 0.0372
+    },
+    {
+      "feature": "f563",
+      "missing_frac": 0.1742,
+      "fail_when_missing": 0.0879,
+      "fail_when_present": 0.0618,
+      "gap": 0.0261
+    },
+    {
+      "feature": "f549",
+      "missing_frac": 0.1659,
+      "fail_when_missing": 0.0692,
+      "fail_when_present": 0.0658,
+      "gap": 0.0034
+    },
+    {
+      "feature": "f552",
+      "missing_frac": 0.1659,
+      "fail_when_missing": 0.0692,
+      "fail_when_present": 0.0658,
+      "gap": 0.0034
+    }
+  ],
+  "ablation": [
+    {
+      "特徵集": "原始 590 維",
+      "ROC-AUC 中位數": "0.524",
+      "PR-AUC 中位數": "0.075",
+      "節省中位數": "-12.6%",
+      "最差一折": "-30.7%",
+      "省錢折數": "2/4",
+      "每折 ROC": "[0.842, 0.252, 0.528, 0.519]"
+    },
+    {
+      "特徵集": "加上 80 個偏離特徵",
+      "ROC-AUC 中位數": "0.543",
+      "PR-AUC 中位數": "0.071",
+      "節省中位數": "-5.1%",
+      "最差一折": "-45.0%",
+      "省錢折數": "1/4",
+      "每折 ROC": "[0.841, 0.579, 0.506, 0.439]"
+    }
+  ],
+  "verdict": "時間偏離特徵未帶來可靠改善；ROC-AUC 中位數仍接近隨機。"
+}

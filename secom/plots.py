@@ -211,6 +211,72 @@ def plot_sensitivity(sens: pd.DataFrame, out_dir: Path,
     return _save(fig, out_dir, "sensitivity.png")
 
 
+def plot_backtest(bt: pd.DataFrame, out_dir: Path,
+                  policy_label: str = "", currency: str = "TWD") -> Path:
+    """滾動原點回測：每一折的節省比例，加上中位數與零線。
+
+    這張圖的作用是把「12.4%」換成「一個分布」。主管看的是最差那一根有多低，
+    不是最好那一根有多高。
+    """
+    fig, (ax, ax2) = plt.subplots(
+        1, 2, figsize=(9.4, 3.9), gridspec_kw={"width_ratios": [1.35, 1]}
+    )
+
+    # 左：每折節省比例
+    s = bt["saving_vs_best_baseline"] * 100
+    colors = [COPPER if v > 0 else "#8C3A3A" for v in s]
+    ax.bar(bt["fold"], s, color=colors, width=0.62)
+    ax.axhline(0, color=INK, lw=1.1)
+    med = s.median()
+    ax.axhline(med, ls="--", lw=1.3, color=TEAL,
+               label=f"median {med:+.1f}%")
+    ax.set_xticks(bt["fold"])
+    ax.set_xticklabels(
+        [f"F{int(f)}\n{a:%m/%d}–{b:%m/%d}"
+         for f, a, b in zip(bt["fold"], pd.to_datetime(bt["eval_from"]),
+                            pd.to_datetime(bt["eval_to"]))],
+        fontsize=7.6,
+    )
+    ax.set_ylabel("Cost saving vs best baseline (%)")
+    ax.set_title(f"Walk-forward backtest{f' — {policy_label}' if policy_label else ''}")
+    ax.grid(axis="y", alpha=0.45)
+    ax.legend(frameon=False, fontsize=8.5)
+
+    # 右：每折的攔截率 vs 加驗率，看策略行為穩不穩
+    w = 0.36
+    idx = np.arange(len(bt))
+    ax2.bar(idx - w / 2, bt["flag_rate"] * 100, width=w, color=TEAL,
+            label="inspected %")
+    ax2.bar(idx + w / 2, bt["catch_rate"] * 100, width=w, color=COPPER,
+            label="failures caught %")
+    ax2.set_xticks(idx)
+    ax2.set_xticklabels([f"F{int(f)}" for f in bt["fold"]], fontsize=8.5)
+    ax2.set_ylim(0, 105)
+    ax2.set_ylabel("%")
+    ax2.set_title("Policy behaviour per fold")
+    ax2.grid(axis="y", alpha=0.45)
+    ax2.legend(frameon=False, fontsize=8.5)
+
+    fig.tight_layout()
+    return _save(fig, out_dir, "backtest.png")
+
+
+def plot_drift(drift_df: pd.DataFrame, out_dir: Path) -> Path:
+    """每週 fail 率與四週移動平均。決定整個專題切分策略的那張圖。"""
+    fig, ax = plt.subplots(figsize=(7.2, 3.5))
+    wk = pd.to_datetime(drift_df["week"])
+    ax.bar(wk, drift_df["fail_rate"] * 100, width=5.2, color=TEAL,
+           alpha=0.75, label="weekly fail rate")
+    ax.plot(wk, drift_df["fail_rate_ma4"] * 100, color=COPPER, lw=2.1,
+            marker="o", ms=3.5, label="4-week moving average")
+    ax.set_ylabel("Fail rate (%)")
+    ax.set_title("Yield ramp: failure rate falls ~10x over 13 weeks")
+    ax.grid(axis="y", alpha=0.45)
+    ax.legend(frameon=False, fontsize=8.5)
+    fig.autofmt_xdate(rotation=0, ha="center")
+    return _save(fig, out_dir, "drift.png")
+
+
 def plot_split_timeline(split, out_dir: Path) -> Path:
     """時序切分示意圖。用來向面試官證明你沒有隨機切分。"""
     fig, ax = plt.subplots(figsize=(6.6, 2.5))

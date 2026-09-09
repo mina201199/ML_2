@@ -97,9 +97,14 @@ def optimal_threshold(
 
 
 def policy_table(
-    y_true, y_score, t_star: float, c_inspect: float, c_escape: float
+    y_true, y_score, t_star: float, c_inspect: float, c_escape: float,
+    *, y_select, capacity_frac: float | None = None,
 ) -> pd.DataFrame:
-    """三種策略並排比較。這張表就是履歷 bullet 的來源。"""
+    """Show model costs and reference policies.
+
+    Select the feasible baseline using y_select only. Random-capacity costs are analytical
+    expectations for a fixed integer quota.
+    """
     y_true = np.asarray(y_true)
     y_score = np.asarray(y_score)
     n, n_fail = len(y_true), int(y_true.sum())
@@ -120,11 +125,30 @@ def policy_table(
     ]
     df = pd.DataFrame(rows).set_index("policy")
 
-    baseline_best = df.loc[
-        ["不檢（放行全部）", "全檢（100% 加驗）"], "total_cost"
-    ].min()
+    rate = np.floor(n * capacity_frac + 1e-10) / n if capacity_frac is not None else 1.0
+    select_rate = (
+        np.floor(len(y_select) * capacity_frac + 1e-10) / len(y_select)
+        if capacity_frac is not None else 1.0
+    )
+    df['feasible'] = df.flag_rate <= rate + 1e-12
+    alternative = '全檢（100% 加驗）'
+    if rate < 1:
+        alternative = f'隨機加驗 {rate:.0%}（期望值）'
+        total = n * rate * c_inspect + n_fail * (1 - rate) * c_escape
+        df.loc[alternative] = dict(threshold=float('nan'), n=n,
+            n_flagged=n*rate, flag_rate=rate, caught=n_fail*rate,
+            missed=n_fail*(1-rate), catch_rate=rate if n_fail else float('nan'),
+            inspect_cost=n*rate*c_inspect, escape_cost=n_fail*(1-rate)*c_escape,
+            total_cost=total, cost_per_lot=total/n, feasible=True)
+    select_escape = np.mean(y_select) * c_escape
+    choose_inspect = (
+        select_rate * c_inspect + (1 - select_rate) * select_escape < select_escape
+    )
+    baseline_name = alternative if choose_inspect else '不檢（放行全部）'
+    baseline_best = df.loc[baseline_name, 'total_cost']
     df["vs_最佳基準"] = df["total_cost"] - baseline_best
-    df["節省比例"] = -df["vs_最佳基準"] / baseline_best
+    df["節省比例"] = -df["vs_最佳基準"] / baseline_best if baseline_best else float('nan')
+    df.attrs['baseline_name'] = baseline_name
 
     df.attrs["n"] = n
     df.attrs["n_fail"] = n_fail
@@ -132,13 +156,17 @@ def policy_table(
 
 
 def threshold_for_flag_rate(y_score, flag_rate: float) -> float:
-    """回傳「剛好標記分數最高的 flag_rate 比例」所需的門檻。"""
+    """At most floor(n * rate) items; boundary ties are excluded together."""
     y_score = np.asarray(y_score)
+    if not len(y_score) or not 0 <= flag_rate <= 1:
+        raise ValueError('Scores must be nonempty and flag_rate must be in [0, 1].')
     if flag_rate <= 0:
         return float(y_score.max() + 1e-9)
     if flag_rate >= 1:
         return float(y_score.min())
-    return float(np.quantile(y_score, 1.0 - flag_rate))
+    count = int(np.floor(len(y_score) * flag_rate + 1e-10))
+    ordered = np.sort(y_score)[::-1]
+    return float(np.nextafter(ordered[count], np.inf))
 
 
 def optimal_flag_rate(
@@ -149,14 +177,10 @@ def optimal_flag_rate(
     capacity_frac: float | None = None,
     grid: int = 101,
 ) -> dict:
-    """分位數策略：選最佳的「標記比例」，而不是最佳的絕對機率門檻。
+    """Select a batch inspection fraction using labeled calibration observations.
 
-    為什麼要有這個版本：良率會漂移（本資料 7 月 22% fail → 10 月 1.8%）。
-    絕對門檻 p ≥ 0.035 綁在某個時期的基準率上，基準率一變就失準；
-    「驗分數最高的前 20%」則是相對規則，跨基準率轉移得穩得多，
-    而且產線的產能約束本來就是用比例表達的。
-
-    面試時這是一個很好的對照：同一個模型，兩種決策參數化，哪一種比較耐用。
+    Ranking across a future batch requires all its scores to be available together; it is not an
+    online threshold.
     """
     y_score = np.asarray(y_score)
     hi = capacity_frac if capacity_frac is not None else 1.0
@@ -173,20 +197,9 @@ def optimal_flag_rate(
 
 
 def conservative_base_rate(n_fail: int, n: int, conf: float = 0.95) -> float:
-    """基準率的保守上界（Clopper-Pearson 單邊）。
+    """One-sided Clopper-Pearson upper bound under a binomial assumption.
 
-    為什麼需要這個 —— 這是滾動回測揭露的真正病灶。
-
-    在成本比 r 之下，「放行 vs 加驗」的分界是 r × p = 1，也就是 r=30 時
-    p = 3.33%。而本資料的校準窗實測基準率是 2.55%、3.40%、2.98%、8.51%
-    —— 有三個窗剛好壓在分界線上。等於整個決策是被 6~8 個雜訊正樣本決定的。
-
-    實測後果：某一折的校準窗看到 3.0% 就選了「一批都不驗」，
-    結果下一段的 fail 率跳到 9.7%，成本比全檢還高 190%。
-
-    修法是承認基準率本身有估計誤差，並在成本不對稱的方向上保守：
-    用上界而非點估計。正樣本越少，上界拉得越高，policy 就越傾向多驗 ——
-    這正是「資訊不足時該保守」的正確行為。
+    This does not guarantee coverage of a future, drifting population.
     """
     from scipy.stats import beta
 
@@ -206,13 +219,10 @@ def robust_flag_rate(
     conf: float = 0.95,
     grid: int = 101,
 ) -> dict:
-    """在基準率不確定性下選最佳加驗比例。
+    """Heuristic cost inflation from base-rate uncertainty.
 
-    做法：把流出成本按 `保守上界 / 點估計` 的比例放大，再做一般的成本最佳化。
-
-    直覺：如果真實的壞品率可能比我在校準窗看到的高 λ 倍，那我漏放的期望件數
-    也會是 λ 倍，所以決策時應該用放大後的流出成本。λ 由樣本量決定 ——
-    正樣本越少，λ 越大，越傾向多驗。樣本足夠時 λ → 1，退回一般解。
+    With zero observed failures, use homogeneous upper risk to choose an endpoint. This is not a
+    distributionally robust cost guarantee.
     """
     y_true = np.asarray(y_true)
     n, n_fail = len(y_true), int(y_true.sum())
@@ -220,9 +230,17 @@ def robust_flag_rate(
     p_up = conservative_base_rate(n_fail, n, conf)
     lam = (p_up / p_hat) if p_hat > 0 else 1.0
 
-    best = optimal_flag_rate(
-        y_true, y_score, c_inspect, c_escape * lam, capacity_frac, grid
-    )
+    if n_fail == 0:
+        # No observed escapes does not imply zero future risk. With no ranking
+        # evidence, use a homogeneous upper-risk scenario and choose an endpoint.
+        cap = capacity_frac if capacity_frac is not None else 1.0
+        rate = cap if p_up * c_escape > c_inspect else 0.0
+        best = cost_at(y_true, y_score, threshold_for_flag_rate(y_score, rate), c_inspect, c_escape)
+        best['target_flag_rate'] = rate
+    else:
+        best = optimal_flag_rate(
+            y_true, y_score, c_inspect, c_escape * lam, capacity_frac, grid
+        )
     best = dict(best)
     best["base_rate_observed"] = p_hat
     best["base_rate_upper"] = p_up
@@ -230,17 +248,46 @@ def robust_flag_rate(
     return best
 
 
+def required_lift(prevalence: float, cost_ratio: float) -> float:
+    """模型排序必須達到的 lift@r，才可能打敗最便宜的零模型策略。
+
+    設加驗成本為 1 單位、漏放成本為 R 倍、盛行率 p、加驗比例 r、
+    模型在前 r 比例裡攔到的不良品比例為 recall(r)：
+
+        模型成本      = r + (1 - recall) · p · R
+        不檢           = p · R
+        等額隨機加驗   = r + (1 - r) · p · R      （r = 1 時就是全檢）
+
+    當 p·R > 1（平均而言加驗划算），等額隨機一定比不檢便宜，於是門檻化簡成
+    recall > r，也就是 **lift > 1**：模型唯一的工作是打敗同配額的隨機抽驗。
+    當 p·R < 1（加驗不划算），門檻是不檢，模型必須做到 lift > 1/(p·R)。
+
+    合起來就是 max(1, 1/(p·R))，且與 r 無關 —— 產能上限只改變「哪一個零模型
+    策略在把關」，不改變門檻高度。
+
+    注意適用範圍：p·R < 1 時，這個門檻只在 r ≤ p·R 的加驗比例下成立。r 一旦
+    超過 p·R，光是加驗帳單就已經大於「完全不檢」的總成本，再完美的排序也贏不了。
+    p·R ≥ 1 時所有 r 都適用。回傳 inf 表示沒有任何 lift 能讓加驗划算。
+    """
+    pr = prevalence * cost_ratio
+    if pr <= 0:
+        return float("inf")
+    return max(1.0, 1.0 / pr)
+
+
 def sensitivity(
     y_true,
     y_score,
+    *,
+    y_select,
+    p_select,
     ratios=(1, 2, 5, 10, 20, 30, 50, 100, 200),
     capacity_frac: float | None = None,
 ) -> pd.DataFrame:
-    """損益兩平分析：成本比 r = c_escape / c_inspect 在什麼區間，模型才划算？
+    """For each ratio, select the threshold and feasible baseline on
+    y_select/p_select; report costs on y_true/y_score.
 
-    這一段回答的是面試官心裡真正的問題：「你怎麼知道這在我們公司也成立？」
-    答案是不知道，但你可以給出一個區間，讓對方拿自己的成本數字去對。
-    成本以 c_inspect 為單位正規化，所以只有比值有意義。
+    No monotonic break-even claim is made.
     """
     y_true = np.asarray(y_true)
     y_score = np.asarray(y_score)
@@ -248,10 +295,21 @@ def sensitivity(
 
     rows = []
     for r in ratios:
-        best = optimal_threshold(y_true, y_score, 1.0, r, capacity_frac)
+        selected = optimal_threshold(y_select, p_select, 1.0, r, capacity_frac)
+        threshold = selected['threshold']
+        if capacity_frac is not None:
+            threshold = max(threshold, threshold_for_flag_rate(y_score, capacity_frac))
+        best = cost_at(y_true, y_score, threshold, 1.0, r)
         c_none, c_all = r * n_fail, float(n)
         c_model = best["total_cost"]
-        baseline = min(c_none, c_all)
+        rate = np.floor(n * capacity_frac + 1e-10) / n if capacity_frac is not None else 1.0
+        select_rate = (
+            np.floor(len(y_select) * capacity_frac + 1e-10) / len(y_select)
+            if capacity_frac is not None else 1.0
+        )
+        alternative = n * rate + (1 - rate) * c_none
+        choose_inspect = select_rate + (1-select_rate)*np.mean(y_select)*r < np.mean(y_select)*r
+        baseline = alternative if choose_inspect else c_none
         rows.append(
             {
                 "cost_ratio": r,
@@ -261,33 +319,9 @@ def sensitivity(
                 "cost_不檢": c_none,
                 "cost_全檢": c_all,
                 "cost_模型": c_model,
-                "節省比例": (baseline - c_model) / baseline,
+                "cost_基準": baseline,
+                "節省比例": (baseline - c_model) / baseline if baseline else float('nan'),
                 "模型勝出": bool(c_model < baseline),
             }
         )
     return pd.DataFrame(rows).set_index("cost_ratio")
-
-
-def breakeven_ratio(
-    y_true, y_score, lo: float = 1.0, hi: float = 500.0, capacity_frac=None
-) -> float | None:
-    """二分搜出模型開始打敗兩個基準的最小成本比。找不到就回 None。"""
-    y_true = np.asarray(y_true)
-    y_score = np.asarray(y_score)
-    n, n_fail = len(y_true), int(y_true.sum())
-
-    def wins(r: float) -> bool:
-        best = optimal_threshold(y_true, y_score, 1.0, r, capacity_frac)
-        return best["total_cost"] < min(r * n_fail, float(n))
-
-    if not wins(hi):
-        return None
-    if wins(lo):
-        return lo
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if wins(mid):
-            hi = mid
-        else:
-            lo = mid
-    return hi

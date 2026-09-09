@@ -33,18 +33,22 @@ def _logit(p: np.ndarray) -> np.ndarray:
 
 
 class PlattCalibrator:
-    """Platt scaling：在原始分數的 logit 上再套一層一維邏輯迴歸。
+    """Two-parameter sigmoid calibration; single-class windows use a smoothed constant.
 
-    只有兩個參數（斜率與截距），所以即使 val 只有三百多筆也不容易過擬合。
-    這是刻意選的 —— isotonic regression 彈性大得多，在這個樣本量下會過擬合。
+    Small samples and temporal distribution changes can still impair calibration.
     """
 
-    def fit(self, p_raw: np.ndarray, y: np.ndarray) -> "PlattCalibrator":
+    def fit(self, p_raw: np.ndarray, y: np.ndarray) -> PlattCalibrator:
+        if len(np.unique(y)) < 2:
+            self.constant_ = float((np.sum(y) + 1) / (len(y) + 2))
+            return self
         self.lr_ = LogisticRegression(C=1e6, solver="lbfgs")
         self.lr_.fit(_logit(p_raw).reshape(-1, 1), y)
         return self
 
     def transform(self, p_raw: np.ndarray) -> np.ndarray:
+        if hasattr(self, 'constant_'):
+            return np.full(len(p_raw), self.constant_)
         return self.lr_.predict_proba(_logit(p_raw).reshape(-1, 1))[:, 1]
 
 
@@ -129,7 +133,7 @@ def _lgbm_params(cfg, n_pos: int, n_neg: int, n_estimators: int) -> dict:
         reg_lambda=p.reg_lambda,
         scale_pos_weight=n_neg / max(n_pos, 1),
         random_state=cfg.seed,
-        n_jobs=-1,
+        n_jobs=p.get('n_jobs', 4),
         verbose=-1,
     )
 
@@ -143,9 +147,9 @@ def _folds(Xtr, ytr, cfg, verbose: bool = False) -> list[tuple]:
         TimeSeriesSplit(n_splits=cfg.model.cv.n_splits).split(Xtr), start=1
     ):
         n_pos_va = int(ytr.iloc[i_va].sum())
-        if n_pos_va == 0 or ytr.iloc[i_tr].sum() == 0:
+        if ytr.iloc[i_va].nunique() < 2 or ytr.iloc[i_tr].nunique() < 2:
             if verbose:
-                print(f"    fold {k}: 驗證段沒有 fail，跳過")
+                print(f"    fold {k}: 訓練或驗證段只有單一類別，略過 AUC 選模")
             continue
         if verbose:
             print(
@@ -157,20 +161,13 @@ def _folds(Xtr, ytr, cfg, verbose: bool = False) -> list[tuple]:
 
 
 def choose_n_estimators(Xtr, ytr, cfg, verbose: bool = False) -> tuple[int, dict]:
-    """用 train 內部的擴張窗 CV 決定樹的棵數。
+    """Choose tree count from the mean temporal CV curve.
 
-    為什麼不用 val 早停：val 只有 11 個 fail，PR-AUC 在那個樣本量下純粹是噪音
-    （第一版就停在第 1 棵樹）。而且 val 還要拿去做校準 —— 一份資料同時做兩件事
-    就是兩次偷看。改成在 train 內部做時序 CV，val 就乾淨了。
-
-    為什麼取「平均學習曲線的極大值」而不是「各折 best_iteration 的中位數」：
-    每一折的 argmax 都是在 8~26 個正樣本上算出來的，抖得離譜（實測 [2, 1, 88]），
-    中位數只會把噪音傳下去。先把各折的驗證曲線逐輪平均，再取極大值，
-    等於用 3 倍的樣本數估同一件事，穩定得多。這是 lgb.cv 的標準用法。
-
-    早停指標用 AUC 而非 PR-AUC：兩者方向一致，但 AUC 在小樣本上穩定得多。
-    報告時仍然以 PR-AUC 為主指標。
+    Each fold fits its own preprocessing, class weight, and feature bins; apply configured patience
+    and minimum count.
     """
+    import inspect
+
     import lightgbm as lgb
 
     c = cfg.model.cv
@@ -179,21 +176,43 @@ def choose_n_estimators(Xtr, ytr, cfg, verbose: bool = False) -> tuple[int, dict
     if not folds:
         return floor, {"source": "no usable folds", "curve_len": 0}
 
-    n_pos = int(ytr.sum())
-    params = _lgbm_params(cfg, n_pos, len(ytr) - n_pos, cfg.model.lgbm.n_estimators)
-    params.pop("n_estimators")
-    params.update(metric=c.metric, verbosity=-1)
-
-    hist = lgb.cv(
-        params,
-        lgb.Dataset(Xtr, label=ytr),
-        num_boost_round=cfg.model.lgbm.n_estimators,
-        folds=folds,
-        callbacks=[lgb.early_stopping(c.early_stopping_rounds, verbose=False)],
-        eval_train_metric=False,
-    )
-    key = next(k for k in hist if k.endswith("-mean"))
-    curve = np.asarray(hist[key])
+    curves = []
+    for i_tr, i_va in folds:
+        pre = build_preprocessor(cfg, impute=False).fit(Xtr.iloc[i_tr], ytr.iloc[i_tr])
+        n_pos = int(ytr.iloc[i_tr].sum())
+        estimator = LGBMClassifier(**_lgbm_params(
+            cfg, n_pos, len(i_tr) - n_pos, cfg.model.lgbm.n_estimators))
+        hist = {}
+        X_valid, y_valid = pre.transform(Xtr.iloc[i_va]), ytr.iloc[i_va]
+        # LightGBM 4.7 起 `eval_set` 改為 `eval_X` / `eval_y`，舊名稱會發棄用警告；
+        # 但 requirements 的下限是 4.5，那裡還沒有新名稱。因此按實際簽名選用 ——
+        # 這不是防禦性程式碼，是 4.5~4.7 之間真實存在的 API 改名。
+        eval_kwargs = (
+            {"eval_X": X_valid, "eval_y": y_valid}
+            if "eval_X" in inspect.signature(estimator.fit).parameters
+            else {"eval_set": [(X_valid, y_valid)]}
+        )
+        # 不傳 early stopping callback：patience 要套在「各折平均後」的曲線上，
+        # 每折各自早停再平均是另一種方法，會改變選出的棵數。
+        estimator.fit(
+            pre.transform(Xtr.iloc[i_tr]), ytr.iloc[i_tr],
+            **eval_kwargs, eval_metric=c.metric,
+            callbacks=[lgb.record_evaluation(hist)],
+        )
+        curves.append(hist['valid_0'][c.metric])
+    curve = np.mean(curves, axis=0)
+    # Apply patience to the mean curve, with each fold's own preprocessing/bins.
+    peak, stop = 0, len(curve)
+    for i in range(1, len(curve)):
+        if curve[i] > curve[peak]:
+            peak = i
+        if i - peak >= c.early_stopping_rounds:
+            stop = i + 1
+            break
+    # patience 從未觸發 = 峰值可能還在上限之外，選出的棵數會受上限影響。
+    # 這是 n_estimators 上限開始生效的精確條件，必須讓它可見。
+    ceiling_binding = stop == len(curve)
+    curve = curve[:stop]
     best = int(np.argmax(curve)) + 1
     meta = {
         "source": "CV mean-curve argmax",
@@ -201,7 +220,14 @@ def choose_n_estimators(Xtr, ytr, cfg, verbose: bool = False) -> tuple[int, dict
         "best_metric": float(curve[best - 1]),
         "metric": c.metric,
         "n_folds": len(folds),
+        "ceiling_binding": bool(ceiling_binding),
     }
+    if ceiling_binding:
+        print(
+            f"    警告：內層 CV 的 patience 從未觸發（曲線用滿 {len(curve)} 輪 = "
+            f"n_estimators 上限）。選出的棵數受上限影響，請調高 "
+            f"config.yaml 的 model.lgbm.n_estimators 後重新量測。"
+        )
     if verbose:
         print(
             f"    CV 平均曲線 {len(curve)} 輪，{c.metric} 峰值 {curve[best - 1]:.4f}"
@@ -214,15 +240,10 @@ def choose_n_estimators(Xtr, ytr, cfg, verbose: bool = False) -> tuple[int, dict
 
 
 def oof_raw_predictions(Xtr, ytr, cfg, n_estimators: int) -> np.ndarray:
-    """用同一組 TimeSeriesSplit 產生 train 上的 out-of-fold 原始機率。
+    """Temporal out-of-fold scores using a predetermined tree count.
 
-    為什麼需要這個：校準只能用「模型沒看過的資料」。原本只用 val（11 個 fail）
-    去 fit Platt，兩個參數配 11 個正樣本，斜率被壓到幾乎為零 —— 校準後的機率
-    全部擠在 0.028~0.054 之間（動態範圍剩 2 倍，原始是 47 倍），排序資訊被抹掉，
-    導致最佳門檻擠在一條極窄的帶子裡，決策對門檻變得超級敏感。
-
-    改用 OOF + val 一起校準，正樣本數從 11 拉到約 50 以上，斜率才估得準。
-    第一折的訓練段沒有 OOF 預測（沒有任何模型沒看過它們），維持 NaN 並排除。
+    Every fold fits preprocessing only on its own training rows. Unavailable early predictions
+    remain NaN. Positive-slope calibration preserves score ordering.
     """
     from sklearn.model_selection import TimeSeriesSplit
 
@@ -233,10 +254,11 @@ def oof_raw_predictions(Xtr, ytr, cfg, n_estimators: int) -> np.ndarray:
         if y_fold.sum() == 0:
             continue
         n_pos = int(y_fold.sum())
+        pre = build_preprocessor(cfg, impute=False).fit(Xtr.iloc[i_tr], y_fold)
         est = LGBMClassifier(
             **_lgbm_params(cfg, n_pos, len(y_fold) - n_pos, n_estimators)
-        ).fit(Xtr.iloc[i_tr], y_fold)
-        oof[i_va] = est.predict_proba(Xtr.iloc[i_va])[:, 1]
+        ).fit(pre.transform(Xtr.iloc[i_tr]), y_fold)
+        oof[i_va] = est.predict_proba(pre.transform(Xtr.iloc[i_va]))[:, 1]
     return oof
 
 
@@ -245,12 +267,12 @@ def fit_lgbm(split, cfg, verbose: bool = False) -> FittedModel:
     pre = build_preprocessor(cfg, impute=False).fit(split.X_train, split.y_train)
     Xtr = pre.transform(split.X_train)
 
-    n_estimators, cv_meta = choose_n_estimators(Xtr, split.y_train, cfg, verbose)
+    n_estimators, cv_meta = choose_n_estimators(split.X_train, split.y_train, cfg, verbose)
     floor_hit = cv_meta.get("source") == "min_estimators floor"
     if floor_hit:
         print(
             f"    警告：CV 平均曲線的峰值低於下限，改用 min_estimators={n_estimators}。"
-            f"訊號很弱，這件事要寫進報告。"
+            f"這是設定的最低棵數限制，需在報告揭露。"
         )
 
     n_pos = int(split.y_train.sum())
@@ -274,7 +296,10 @@ def fit_lgbm(split, cfg, verbose: bool = False) -> FittedModel:
     )
 
     # 校準資料 = train 的 OOF 預測 + val。兩者都是模型沒看過的。
-    oof = oof_raw_predictions(Xtr, split.y_train, cfg, n_estimators)
+    # Fixed in advance: using the globally CV-selected count for earlier OOF
+    # predictions would indirectly reuse their labels during hyperparameter tuning.
+    oof_trees = cfg.model.cv.get('calibration_estimators', 30)
+    oof = oof_raw_predictions(split.X_train, split.y_train, cfg, oof_trees)
     ok = ~np.isnan(oof)
     p_cal = np.concatenate([oof[ok], model._raw_proba(split.X_val)])
     y_cal = np.concatenate([split.y_train.to_numpy()[ok], split.y_val.to_numpy()])
@@ -284,6 +309,7 @@ def fit_lgbm(split, cfg, verbose: bool = False) -> FittedModel:
         "n_samples": int(len(y_cal)),
         "n_positives": int(y_cal.sum()),
         "source": "train OOF + val",
+        "oof_fixed_estimators": oof_trees,
     }
     if verbose:
         print(

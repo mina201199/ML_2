@@ -176,12 +176,10 @@ def plot_top_features(shap_df: pd.DataFrame, out_dir: Path, top_n: int = 20) -> 
     return _save(fig, out_dir, "top_features.png")
 
 
-def plot_sensitivity(sens: pd.DataFrame, out_dir: Path,
-                     breakeven: float | None = None) -> Path:
-    """損益兩平圖：成本比要多高，模型才打敗全檢與不檢。
+def plot_sensitivity(sens: pd.DataFrame, out_dir: Path) -> Path:
+    """Plot future costs for thresholds selected on validation.
 
-    breakeven 由 decision.breakeven_ratio 二分搜出（連續值）。不傳的話會退回
-    用離散網格中第一個勝出的點 —— 那個值會偏大，跟報告裡的數字對不起來。
+    Winning grid points need not form one interval.
     """
     fig, ax = plt.subplots(figsize=(6.0, 4.1))
     x = sens.index.values
@@ -189,23 +187,14 @@ def plot_sensitivity(sens: pd.DataFrame, out_dir: Path,
     ax.plot(x, sens["cost_全檢"], ls=":", lw=1.7, color=TEAL, label="Inspect everything")
     ax.plot(x, sens["cost_模型"], lw=2.1, color=COPPER, label="Model-guided")
 
-    win = sens[sens["模型勝出"]]
-    start = breakeven if breakeven is not None else (
-        win.index.min() if not win.empty else None
-    )
-    if start is not None:
-        ax.axvspan(start, x.max(), color=COPPER, alpha=0.07)
-        ax.annotate(
-            f"model wins from\nratio ≈ {start:.1f} : 1",
-            xy=(start, ax.get_ylim()[1] * 0.55),
-            xytext=(8, 0), textcoords="offset points", fontsize=8.5, color=COPPER,
-        )
+    ax.plot(x, sens["cost_基準"], lw=1.4, color=GREY, label="Validation-selected baseline")
+    ax.set_title("Validation-selected cost sensitivity")
 
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("Cost ratio  (escape cost ÷ inspection cost)")
     ax.set_ylabel("Total cost (units of inspection cost)")
-    ax.set_title("Break-even sensitivity")
+    ax.set_title("Validation-selected cost sensitivity")
     ax.grid(alpha=0.4, which="both")
     ax.legend(frameon=False, fontsize=8.5)
     return _save(fig, out_dir, "sensitivity.png")
@@ -234,10 +223,10 @@ def plot_backtest(bt: pd.DataFrame, out_dir: Path,
     ax.set_xticklabels(
         [f"F{int(f)}\n{a:%m/%d}–{b:%m/%d}"
          for f, a, b in zip(bt["fold"], pd.to_datetime(bt["eval_from"]),
-                            pd.to_datetime(bt["eval_to"]))],
+                            pd.to_datetime(bt["eval_to"]), strict=False)],
         fontsize=7.6,
     )
-    ax.set_ylabel("Cost saving vs best baseline (%)")
+    ax.set_ylabel("Saving vs validation-selected baseline (%)")
     ax.set_title(f"Walk-forward backtest{f' — {policy_label}' if policy_label else ''}")
     ax.grid(axis="y", alpha=0.45)
     ax.legend(frameon=False, fontsize=8.5)
@@ -255,7 +244,7 @@ def plot_backtest(bt: pd.DataFrame, out_dir: Path,
     ax2.set_ylabel("%")
     ax2.set_title("Policy behaviour per fold")
     ax2.grid(axis="y", alpha=0.45)
-    ax2.legend(frameon=False, fontsize=8.5)
+    ax2.legend(frameon=False, fontsize=8.5, loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=2)
 
     fig.tight_layout()
     return _save(fig, out_dir, "backtest.png")
@@ -270,7 +259,7 @@ def plot_drift(drift_df: pd.DataFrame, out_dir: Path) -> Path:
     ax.plot(wk, drift_df["fail_rate_ma4"] * 100, color=COPPER, lw=2.1,
             marker="o", ms=3.5, label="4-week moving average")
     ax.set_ylabel("Fail rate (%)")
-    ax.set_title("Yield ramp: failure rate falls ~10x over 13 weeks")
+    ax.set_title("Observed weekly failure rates")
     ax.grid(axis="y", alpha=0.45)
     ax.legend(frameon=False, fontsize=8.5)
     fig.autofmt_xdate(rotation=0, ha="center")
@@ -297,3 +286,82 @@ def plot_split_timeline(split, out_dir: Path) -> Path:
     ax.tick_params(axis="y", length=0)
     ax.grid(axis="x", alpha=0.4)
     return _save(fig, out_dir, "split_timeline.png")
+
+
+def plot_feasibility(bt: pd.DataFrame, cfg, out_dir: Path,
+                     model_label: str = "") -> Path:
+    """模型在什麼條件下才可能有價值，以及這份資料離那個條件多遠。
+
+    左圖：邊界 p·R = 1 把 (成本比, 盛行率) 平面切成兩塊。邊界以下加驗平均不划算，
+    把關的零模型策略是「不檢」，模型必須做到 lift > 1/(p·R)；邊界以上加驗已經
+    划算，把關的是「等額隨機加驗／全檢」，模型必須做到 lift > 1。
+    右圖：把那條門檻畫成一條線，跟每一折實際量到的 lift@20% 並排。
+
+    這張圖的用途是把「模型沒有用」從失敗改述成一個設計過的發現：本專題選定的
+    成本假設，把情境放進了「排序能力只需要贏過隨機抽驗」的區域，而實測沒有贏。
+    """
+    from .decision import required_lift
+
+    ratio = cfg.cost.c_escape / cfg.cost.c_inspect
+    prevalence = bt["n_fail_eval"].to_numpy(dtype=float) / bt["n_eval"].to_numpy(dtype=float)
+    pooled = float(bt["n_fail_eval"].sum() / bt["n_eval"].sum())
+    bar = required_lift(pooled, ratio)
+
+    fig, (ax, ax2) = plt.subplots(
+        1, 2, figsize=(10.2, 4.0), gridspec_kw={"width_ratios": [1.15, 1]}
+    )
+
+    # ── 左：加驗是否划算的邊界 ──
+    R = np.logspace(0, np.log10(400), 500)
+    top = max(0.14, prevalence.max() * 1.35)
+    ax.fill_between(R, 1.0 / R, top, color=TEAL, alpha=0.13)
+    ax.fill_between(R, 0, np.minimum(1.0 / R, top), color=COPPER, alpha=0.11)
+    ax.plot(R, 1.0 / R, color=INK, lw=1.5, label="break-even  p · R = 1")
+
+    ax.scatter(np.full(len(prevalence), ratio), prevalence, s=46, color=TEAL,
+               edgecolor="white", linewidth=1.2, zorder=5,
+               label="per-fold prevalence")
+    ax.scatter([ratio], [pooled], s=150, marker="D", color=COPPER,
+               edgecolor="white", linewidth=1.5, zorder=6,
+               label=f"pooled ({pooled:.1%}, R={ratio:.0f})")
+
+    ax.text(15, top * 0.97,
+            "inspection pays on average\n"
+            "bar = beat random at same quota\n(required lift > 1)",
+            fontsize=8.2, color=INK, va="top", ha="left")
+    ax.text(1.45, top * 0.62,
+            "inspection does not pay\n"
+            "bar = inspect nothing\n(required lift > 1/pR)",
+            fontsize=8.2, color=INK, va="top", ha="left")
+    ax.set_xscale("log")
+    ax.set_xlim(1, 400)
+    ax.set_ylim(0, top)
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.0%}")
+    ax.set_xlabel("Cost ratio  R = escape ÷ inspection")
+    ax.set_ylabel("Failure prevalence  p")
+    ax.set_title("Where ranking ability can pay for itself")
+    ax.grid(alpha=0.4, which="both")
+    ax.legend(frameon=False, fontsize=8.2, loc="lower left", bbox_to_anchor=(0.015, 0.02))
+
+    # ── 右：門檻 vs 實測 ──
+    lift = bt["lift_at_20"].to_numpy(dtype=float)
+    colors = [TEAL if v > bar else "#8C3A3A" for v in lift]
+    ax2.bar(bt["fold"], lift, color=colors, width=0.6)
+    ax2.axhline(bar, ls="--", lw=1.6, color=INK,
+                label=f"required lift ({bar:.2f})")
+    med = float(np.nanmedian(lift))
+    ax2.axhline(med, ls=":", lw=1.5, color=COPPER, label=f"median {med:.2f}")
+    for f, v in zip(bt["fold"], lift, strict=False):
+        ax2.annotate(f"{v:.2f}", xy=(f, v), xytext=(0, 3),
+                     textcoords="offset points", ha="center", fontsize=8.2)
+    ax2.set_xticks(bt["fold"])
+    ax2.set_xticklabels([f"F{int(f)}" for f in bt["fold"]], fontsize=8.5)
+    ax2.set_xlabel("Evaluation window")
+    ax2.set_ylabel("lift@20%  (failure density ÷ prevalence)")
+    suffix = f" — {model_label}" if model_label else ""
+    ax2.set_title(f"Achieved vs required ranking ability{suffix}")
+    ax2.grid(axis="y", alpha=0.45)
+    ax2.legend(frameon=False, fontsize=8.2)
+
+    fig.tight_layout()
+    return _save(fig, out_dir, "feasibility.png")

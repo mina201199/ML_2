@@ -1,6 +1,6 @@
 # SECOM 良率預警 — 專題設定檔
 #
-# 所有實驗參數集中在這裡，程式碼不寫死任何數字。
+# 主要實驗參數集中於此；回測策略清單見 scripts/04_backtest.py。
 # 面試官問「這個門檻怎麼來的」時，你要能指著這個檔案回答。
 
 seed: 42
@@ -13,11 +13,11 @@ data:
   processed_dir: "data/processed"
 
 split:
-  # 時序切分，不是隨機切分。製程會漂移，隨機切分等於讓模型偷看未來。
+  # 時序切分，不是隨機切分。製程會漂移，時序切分用來衡量未來期間的泛化。
   method: "time"
   train_frac: 0.60
-  val_frac: 0.20      # 早停 + 校準 + 選門檻
-  test_frac: 0.20     # 只碰一次
+  val_frac: 0.20      # 校準 + 選門檻；成績只在後續窗計算
+  test_frac: 0.20     # 不用來選門檻；探索性實驗已重複使用
 
 preprocess:
   drop_constant: true          # 116 個零變異欄位
@@ -27,7 +27,15 @@ preprocess:
 model:
   # LightGBM 原生支援 NaN，所以主模型不做填補（這本身是個賣點）
   lgbm:
-    n_estimators: 1500         # 上限；實際棵數由下面的 CV 決定
+    # 上限；實際棵數由下面的 CV 決定。
+    # 為什麼是 400 而不是 1500：choose_n_estimators 會把每一折都擬合到這個上限
+    # 只為了取得完整的 AUC 曲線，然後對「各折平均後」的曲線套 patience 並截斷。
+    # 實測所有訓練窗（590 維與 1,770 維、單次切分與四折回測）的截斷點最大是 207，
+    # 所以 1500 之中有 1,293 輪是擬合了卻從來不讀的。400 有近兩倍餘裕，
+    # 且對所有實測窗給出完全相同的棵數選擇。
+    # 若 patience 從未觸發，choose_n_estimators 會印警告 —— 那代表上限開始生效，
+    # 結果可能因上限而異，必須重新量測後再調高。
+    n_estimators: 400
     learning_rate: 0.05
     num_leaves: 15
     min_child_samples: 20
@@ -38,12 +46,13 @@ model:
 
   # 樹的棵數用 train 內部的擴張窗 CV 決定，不用 val。
   # 原因：val 只有 11 個 fail，PR-AUC 在這個樣本量下抖得沒有意義
-  #（早停曾經停在第 1 棵樹）。把 val 留給校準與選門檻，一份資料只做一件事。
+  #（早停曾經停在第 1 棵樹）。val 用於校準與選門檻，不報作獨立成績。
   cv:
     n_splits: 3
     early_stopping_rounds: 60
     metric: "auc"              # 早停用 AUC（穩定），報告用 PR-AUC（對的業務指標）
     min_estimators: 10         # 只防「CV 崩到 1~2 棵」的病態情況，binding 時會印警告
+    calibration_estimators: 30 # 預先固定 OOF 棵數，避免用後續標籤替早期 OOF 調參
 
   calibration: "sigmoid"       # Platt scaling，只有兩個參數，在小 val 上比 isotonic 安全
 

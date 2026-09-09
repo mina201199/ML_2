@@ -32,6 +32,55 @@ def connect(cfg) -> duckdb.DuckDBPyConnection:
     return con
 
 
+def augment_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    """為每個感測器產生「與近期基線的偏離量」，用 SQL window function 算。
+
+    這正是製程監控的核心直覺 —— 感測器的**絕對值**通常不重要，重要的是它
+    **相對於最近的常態漂移了多少**。這種特徵在 SQL 裡表達最自然，而且是可以
+    直接搬到生產倉儲的寫法（真實廠內這一步就是在倉儲裡做的，不是在 notebook）。
+
+    對每個原始感測器產生兩欄：
+        偏離量      當前值減去前 20 筆的移動平均
+        標準化偏離  偏離量除以前 20 筆的標準差（跨感測器可比）
+
+    窗口刻意用 `ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING` —— 不含當前列，
+    以維持「與過去基線比較」的特徵定義。當前可取得的量測本身不必然構成洩漏，
+    但基線必須只由過去構成，否則就是用未來資訊算特徵。
+
+    欄位命名：第 i 個原始感測器（f000 起算）對應
+        f{900 + 2i}   偏離量
+        f{901 + 2i}   標準化偏離
+    所以 f000 -> f900 / f901，f001 -> f902 / f903，依此類推。取這個編號區間是
+    為了讓 data.FEATURE_RE 仍然收得到它們，同時不與 f000..f589 相撞。
+
+    不做任何監督式篩選、不使用標籤，也不看未來的列 —— 這是為了讓消融實驗不受
+    「用測試集 SHAP 挑特徵」的污染。同時間戳的排序依輸入順序，假設它就是產線順序。
+    """
+    from .data import feature_cols
+
+    raw = [c for c in feature_cols(df) if int(c[1:]) < 590]
+    ordered = df.reset_index(drop=True).assign(_row_id=range(len(df)))
+
+    expressions = []
+    for i, col in enumerate(raw):
+        expressions.extend([
+            f"{col} - AVG({col}) OVER w AS f{900 + 2 * i:03d}",
+            f"({col} - AVG({col}) OVER w)"
+            f" / NULLIF(STDDEV_SAMP({col}) OVER w, 0) AS f{901 + 2 * i:03d}",
+        ])
+
+    query = (
+        "SELECT " + ", ".join(expressions)
+        + " FROM observations"
+        + " WINDOW w AS (ORDER BY _row_id ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING)"
+        + " ORDER BY _row_id"
+    )
+    with duckdb.connect(":memory:") as con:
+        con.register("observations", ordered)
+        extra = con.execute(query).df()
+    return pd.concat([df.reset_index(drop=True), extra], axis=1)
+
+
 # ── 側寫：README 與 EDA 的數字全部由這支查詢產生 ──────────────────
 PROFILE_SQL = """
 SELECT
@@ -80,74 +129,3 @@ ORDER BY week
 
 def drift(con) -> pd.DataFrame:
     return con.execute(DRIFT_SQL).df()
-
-
-# ── 產出時間特徵：真實廠內這一步就是在倉儲裡做的 ──────────────────
-def build_time_features(con, feature_cols: list[str]) -> pd.DataFrame:
-    """為選定的感測器產生時間窗特徵：與近期基線的偏離量。
-
-    這正是製程監控的核心直覺 —— 感測器的**絕對值**通常不重要，
-    重要的是它**相對於最近的常態漂移了多少**。這種特徵在 SQL 裡用
-    window function 表達最自然，而且是可以直接搬到生產倉儲的寫法。
-
-    對每個感測器 f 產生兩個欄位：
-        f_dev20  當前值減去前 20 批的移動平均（偏離量）
-        f_z20    偏離量除以前 20 批的標準差（標準化偏離，跨感測器可比）
-
-    窗口刻意用 `ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING` ——
-    不含當前列。含了就是用當下的值去算自己的基線，那是洩漏。
-    """
-    parts = []
-    for c in feature_cols:
-        parts.append(
-            f"""
-    {c} - AVG({c}) OVER w_{c} AS {c}_dev20,
-    ({c} - AVG({c}) OVER w_{c})
-        / NULLIF(STDDEV_SAMP({c}) OVER w_{c}, 0) AS {c}_z20"""
-        )
-    windows = ",\n    ".join(
-        f"w_{c} AS (ORDER BY ts ROWS BETWEEN 20 PRECEDING AND 1 PRECEDING)"
-        for c in feature_cols
-    )
-    sql = f"""
-SELECT
-    ts,
-    fail,{','.join(parts)}
-FROM lots
-WINDOW
-    {windows}
-ORDER BY ts
-"""
-    return con.execute(sql).df()
-
-
-# ── 缺值模式：缺值本身帶不帶訊息，用 SQL 一次算完 ─────────────────
-def missingness_signal(con, feature_cols: list[str]) -> pd.DataFrame:
-    """每個感測器「有量到 vs 沒量到」時的 fail 率落差。
-
-    落差大表示「這個站點當時沒量到」本身就是訊號 ——
-    這是主模型刻意不填補缺值的理由。
-    """
-    unions = "\nUNION ALL\n".join(
-        f"""SELECT '{c}' AS feature,
-       AVG(CASE WHEN {c} IS NULL THEN fail END)     AS fail_when_missing,
-       AVG(CASE WHEN {c} IS NOT NULL THEN fail END) AS fail_when_present,
-       AVG(CASE WHEN {c} IS NULL THEN 1.0 ELSE 0 END) AS missing_frac
-FROM lots"""
-        for c in feature_cols
-    )
-    sql = f"""
-WITH per_feature AS (
-{unions}
-)
-SELECT
-    feature,
-    ROUND(missing_frac, 4)       AS missing_frac,
-    ROUND(fail_when_missing, 4)  AS fail_when_missing,
-    ROUND(fail_when_present, 4)  AS fail_when_present,
-    ROUND(ABS(fail_when_missing - fail_when_present), 4) AS gap
-FROM per_feature
-WHERE missing_frac BETWEEN 0.02 AND 0.98
-ORDER BY gap DESC
-"""
-    return con.execute(sql).df()

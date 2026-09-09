@@ -15,7 +15,6 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from . import config as cfg_mod
@@ -24,7 +23,7 @@ TS_FORMAT = "%d/%m/%Y %H:%M:%S"
 
 # 嚴格比對 f000..f589。不能用 startswith("f") —— 那會把標籤欄 `fail` 也算成特徵，
 # 等於把答案餵給模型。這是本專題第一個被抓到的洩漏漏洞，留著當提醒。
-FEATURE_RE = re.compile(r"^f\d{3}$")
+FEATURE_RE = re.compile(r"^f\d{3,4}$")
 
 
 def feature_cols(df: pd.DataFrame) -> list[str]:

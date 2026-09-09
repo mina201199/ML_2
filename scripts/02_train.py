@@ -9,10 +9,6 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import joblib
 import numpy as np
@@ -76,7 +72,8 @@ def main() -> None:
         "  前處理  "
         + describe_reduction(lgbm.preprocessor, lgbm.n_features_in, lgbm.n_features_out)
     )
-    print(f"  LightGBM 棵數 {lgbm.best_iteration}（來源：{lgbm.meta['n_estimators_source']}，{lgbm.meta['cv']}）")
+    print(f"  LightGBM 棵數 {lgbm.best_iteration}"
+          f"（來源：{lgbm.meta['n_estimators_source']}，{lgbm.meta['cv']}）")
     print(f"  scale_pos_weight = {lgbm.meta['scale_pos_weight']:.2f}")
 
     print("\n[3/5] 評估（val 與 test）")

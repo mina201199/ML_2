@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secom"
+version = "0.1.0"
+description = "Yield escape prevention: cost-sensitive inspection policy on UCI SECOM"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "pyarrow>=17",
+    "scikit-learn>=1.5",
+    "lightgbm>=4.5",
+    "shap>=0.46",
+    "matplotlib>=3.9",
+    "streamlit>=1.50",
+    "altair>=5.4",
+    "duckdb>=1.0",
+    "scipy>=1.11",
+    "PyYAML>=6.0",
+    "joblib>=1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.12"]
+
+[tool.setuptools]
+packages = ["secom"]
+
+# ── 靜態檢查 ──
+# 以前這個 repo 沒有任何 lint 設定，結果 secom/ 前半部是 100 字元內的說理式註解，
+# 後半部是壓成一行的 300 字元敘述。風格分裂本身就是一種訊號，所以把規則寫死。
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# 測試裡刻意在函式內 import，用來驗證被測模組的匯入時機與 monkeypatch 範圍
+"tests/*" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

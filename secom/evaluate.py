@@ -49,8 +49,11 @@ def scores(y_true, y_score, ks=(0.05, 0.10, 0.20)) -> dict:
         "n": int(len(y_true)),
         "n_fail": int(y_true.sum()),
         "prevalence": float(y_true.mean()),
-        "pr_auc": float(average_precision_score(y_true, y_score)),
-        "roc_auc": float(roc_auc_score(y_true, y_score)),
+        "pr_auc": float(average_precision_score(y_true, y_score)) if y_true.sum() else float('nan'),
+        "roc_auc": (
+            float(roc_auc_score(y_true, y_score))
+            if len(np.unique(y_true)) == 2 else float('nan')
+        ),
         "brier": float(brier_score_loss(y_true, y_score)),
     }
     for k in ks:
@@ -58,7 +61,9 @@ def scores(y_true, y_score, ks=(0.05, 0.10, 0.20)) -> dict:
         out[f"recall@{pct}%"] = recall_at_k(y_true, y_score, k)
         out[f"lift@{pct}%"] = lift_at_k(y_true, y_score, k)
     # PR-AUC 相對於地板（盛行率）的提升倍數 —— 比裸分數好懂
-    out["pr_auc_over_floor"] = out["pr_auc"] / out["prevalence"]
+    out["pr_auc_over_floor"] = (
+        out["pr_auc"] / out["prevalence"] if out['prevalence'] else float('nan')
+    )
     return out
 
 

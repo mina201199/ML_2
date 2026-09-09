@@ -5,6 +5,10 @@ data/processed/*
 
 # 產出物：圖表與報告要進版控，否則 GitHub 上的 README 圖片是破的
 # （這個 repo 是作品集，README 能不能顯示圖片直接決定第一印象）
+#
+# notebooks/01_eda.ipynb 的 cell 輸出也刻意保留、不 strip，理由同上：
+# GitHub 直接渲染 notebook，沒有輸出的 EDA notebook 在瀏覽器裡是一片空白。
+# 代價是 diff 會比較吵，這是知情的取捨。
 models/*.pkl
 models/*.txt
 !models/.gitkeep
@@ -28,3 +32,10 @@ Thumbs.db
 # 個人文件：不進作品集 repo
 ML_2.docx
 ~$*.docx
+
+# Local validation outputs
+*.log
+.test_tmp_*/
+
+# 本機開發便利檔（Browser pane 啟動設定），不進作品集 repo
+.claude/

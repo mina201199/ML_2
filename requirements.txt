@@ -1,4 +1,4 @@
-# 用已安裝的版本鎖住；跑得動就不要動它
+# 相容版本下限，非鎖版；目前驗證環境見 reports/metrics/environment.json
 pandas>=2.2
 numpy>=2.0
 pyarrow>=17
@@ -6,7 +6,7 @@ scikit-learn>=1.5
 lightgbm>=4.5
 shap>=0.46
 matplotlib>=3.9
-streamlit>=1.40
+streamlit>=1.50
 altair>=5.4
 duckdb>=1.0
 scipy>=1.11

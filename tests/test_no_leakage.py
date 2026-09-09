@@ -8,11 +8,6 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -182,13 +177,11 @@ def test_backtest_training_windows_grow_forward(df, cfg):
     assert bt["eval_from"].is_monotonic_increasing, "評估段沒有往前推進"
 
 
-def test_every_backtest_fold_has_failures_to_find(df, cfg):
-    """評估段沒有 fail 的折會讓攔截率無定義，必須已被排除。"""
+def test_backtest_covers_remaining_rows(df, cfg):
     from secom import backtest as bt_mod
-
-    bt = bt_mod.rolling_origin(df, cfg, n_folds=4, policy="robust", verbose=False)
-    assert (bt["n_fail_eval"] > 0).all()
-    assert (bt["n_fail_cal"] > 0).all()
+    bt = bt_mod.rolling_origin(df, cfg, n_folds=4, model_name='majority', verbose=False)
+    assert bt['n_eval'].sum() == len(df) - int(len(df)*.40) - int(len(df)*.15)
+    assert bt['eval_to'].iloc[-1] == df.ts.iloc[-1]
 
 
 # ── 6. 穩健策略的保守性必須隨樣本量單調 ─────────────────────────
@@ -222,6 +215,11 @@ def test_robust_policy_never_inspects_less_than_plain_policy():
     plain = decision.optimal_flag_rate(y, p, 2000, 60000)
     robust = decision.robust_flag_rate(y, p, 2000, 60000)
 
+    # 先確認兩者都落在內點。若哪天參數漂到「一律不驗」或「一律全驗」，
+    # 下面的不等式就會恆真而測不到東西 —— 這兩行讓那種情況直接失敗。
+    assert 0 < plain["target_flag_rate"] < 1, "一般策略退化到端點，單調性斷言失去意義"
+    assert 0 < robust["target_flag_rate"] < 1, "保守策略退化到端點，單調性斷言失去意義"
+
     assert robust["escape_inflation"] >= 1.0
     assert robust["target_flag_rate"] >= plain["target_flag_rate"] - 1e-9, (
         f"保守策略驗得比一般策略少（{robust['target_flag_rate']:.0%} "
@@ -229,34 +227,107 @@ def test_robust_policy_never_inspects_less_than_plain_policy():
     )
 
 
+def test_robust_policy_degenerates_to_near_full_inspection_at_secom_scale():
+    """釘住保守策略在本專題實際尺度下的退化行為。
+
+    校準窗約 235 筆、6 個 fail、成本比 30。此時 p·R = 0.77 < 1，加驗平均不划算，
+    一般策略會挑一個偏低的加驗比例。但 Clopper–Pearson 上界把漏放成本放大約 1.95
+    倍，使 p·λ·R ≈ 1.49 > 1 —— 一旦跨過 1，接近全檢就變成最佳解
+    （邊界的推導見 decision.required_lift）。
+
+    這不是 bug，是這個啟發式方法在小樣本下的必然結果。但它意味著保守策略的成本
+    改善主要來自加驗比例，不是來自模型排序，所以報告必須揭露它。測試把行為固定
+    下來，避免有人日後把它當成「模型有效」的證據。
+    """
+    from secom import decision
+
+    n, n_fail, c_ins, c_esc = 235, 6, 2000, 60000
+    plain_rates, robust_rates = [], []
+    for seed in range(6):
+        rng = np.random.default_rng(seed)
+        y = np.zeros(n, dtype=int)
+        y[rng.choice(n, n_fail, replace=False)] = 1
+        p = rng.random(n)                                  # 刻意無訊號
+        plain_rates.append(decision.optimal_flag_rate(y, p, c_ins, c_esc)["target_flag_rate"])
+        robust = decision.robust_flag_rate(y, p, c_ins, c_esc)
+        robust_rates.append(robust["target_flag_rate"])
+
+    lam = robust["escape_inflation"]
+    prevalence = n_fail / n
+    assert lam > 1.9, f"放大倍數 {lam:.2f} 與預期的 Clopper–Pearson 上界不符"
+    assert prevalence * c_esc / c_ins < 1 < prevalence * lam * c_esc / c_ins, (
+        "放大後的 p·λ·R 沒有跨過 1，這個測試想描述的機制就不成立"
+    )
+    assert np.median(robust_rates) > 0.5, (
+        f"保守策略沒有退化到高加驗比例（中位數 {np.median(robust_rates):.0%}）"
+    )
+    assert np.median(plain_rates) < np.median(robust_rates), (
+        "一般策略與保守策略的加驗比例沒有分離，無法說明退化是放大倍數造成的"
+    )
+
+
 # ── 7. SQL 時間窗特徵不能包含當前列 ──────────────────────────────
 
 
-def test_sql_window_features_exclude_current_row(cfg, df):
+def test_sql_window_features_exclude_current_row(df):
     """偏離特徵的基線窗必須是 `20 PRECEDING AND 1 PRECEDING`。
 
-    含了當前列就是用當下的值去算自己的基線，那是洩漏 ——
-    而且是那種不會報錯、只會讓分數變好看的洩漏。
+    這裡檢查歷史基線的定義；使用決策當下可得的值本身不必然是洩漏。
+    第 i 個原始感測器對應 f{900+2i}（偏離量）與 f{901+2i}（標準化偏離）。
     """
-    from secom import data as data_mod
     from secom import sql as sql_mod
 
-    con = sql_mod.connect(cfg)
-    cols = data_mod.feature_cols(df)[:2]
-    tf = sql_mod.build_time_features(con, cols)
+    # 只取兩個感測器：整份 590 欄會產生 1,180 個 window 運算式，測試不需要
+    subset = df[["ts", "fail", "f000", "f001"]]
+    tf = sql_mod.augment_time_features(subset)
 
-    c = cols[0]
+    dev = "f900"          # f000 的偏離量
+    assert dev in tf.columns, f"合併後的函式沒有產生 {dev}"
     # 第一列前面沒有任何資料，偏離量必須是 NaN（沒有基線可比）
-    assert pd.isna(tf[f"{c}_dev20"].iloc[0]), (
-        "第一列有偏離值 —— 表示基線窗包含了當前列"
-    )
+    assert pd.isna(tf[dev].iloc[0]), "第一列有偏離值 —— 表示基線窗包含了當前列"
+
     # 手算第 25 列：當前值 減去 前 20 列的平均
-    raw = df[c].to_numpy()
+    raw = subset["f000"].to_numpy()
     i = 25
     expected = raw[i] - np.nanmean(raw[i - 20:i])
-    got = tf[f"{c}_dev20"].iloc[i]
+    got = tf[dev].iloc[i]
     if not (np.isnan(expected) and pd.isna(got)):
         np.testing.assert_allclose(
             got, expected, rtol=1e-6,
             err_msg="偏離量不等於『當前值 - 前 20 列平均』",
         )
+
+
+def test_drop_correlated_removes_duplicated_sensors_when_enabled(cfg):
+    """`corr_threshold` 預設是 null（不啟用），但這個選項必須是能用的。
+
+    原本 DropCorrelated 沒有任何測試，而設定檔又永遠不啟用它 —— 那就是一段
+    沒人驗證過的死碼。面試官問「這個選項你試過嗎」是很自然的問題，
+    所以要嘛刪掉、要嘛測起來。這裡選擇測起來。
+    """
+    import copy
+
+    from secom.pipeline import DropCorrelated, build_preprocessor
+
+    rng = np.random.default_rng(4)
+    base = rng.normal(size=200)
+    X = pd.DataFrame({
+        "f000": base,
+        "f001": base + rng.normal(0, 1e-3, 200),   # 幾乎完全共線，應被剔除
+        "f002": rng.normal(size=200),              # 獨立，應保留
+    })
+
+    step = DropCorrelated(threshold=0.95).fit(X)
+    assert step.dropped_ == ["f001"], f"剔除的欄位不對：{step.dropped_}"
+    assert list(step.transform(X).columns) == ["f000", "f002"]
+
+    # threshold=None 時必須完全不動作
+    passthrough = DropCorrelated(threshold=None).fit(X)
+    assert passthrough.dropped_ == []
+    assert list(passthrough.transform(X).columns) == list(X.columns)
+
+    # 而且要真的被 build_preprocessor 接進管線
+    enabled = copy.deepcopy(cfg)
+    enabled["preprocess"]["corr_threshold"] = 0.95
+    pipe = build_preprocessor(enabled, impute=False)
+    assert "drop_correlated" in dict(pipe.steps), "設定啟用後管線裡沒有這一步"

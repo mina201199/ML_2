@@ -1,0 +1,65 @@
+name: CI
+
+# 這個 repo 有 28 個測試、整套 25 秒跑完，卻長期沒有任何東西在跑它們。
+#
+# 關鍵設計：test job 一定要下載 UCI 原始檔。28 個測試裡有 13 個需要
+# data/processed/secom.parquet，而那 13 個正好包含全部的洩漏防護測試
+# （欄位選擇不受 val/test 影響、前處理逐列獨立、回測時序不重疊、SQL 窗不含當前列）。
+# 沒有資料的 CI 會安靜地跳過它們，那就只是一個綠色徽章，不是一道防線。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install ruff
+      - run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.13 是 reports/metrics/environment.json 記錄的驗證環境；
+        # 3.11 是 pyproject.toml 宣告的下限，兩端都要跑到。
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          pip install -e ".[dev]"
+
+      # 原始檔約 2 MB，快取起來避免每次 push 都打 UCI
+      - name: Cache UCI SECOM download
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: secom-raw-v1
+
+      - name: Build dataset
+        run: python scripts/01_build_data.py
+
+      - name: Fail if any test was skipped
+        # 資料備妥後不該有任何 skip。有 skip 就代表資料沒建成功，
+        # 而測試會安靜地放行 —— 這正是要防的情況。
+        run: |
+          python -m pytest tests/ -rs --no-header | tee pytest.log
+          if grep -q "skipped" pytest.log; then
+            echo "::error::有測試被跳過，資料可能沒有建立成功"
+            exit 1
+          fi

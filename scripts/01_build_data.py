@@ -8,25 +8,22 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from secom import config as cfg_mod
 from secom import data as data_mod
 from secom.console import enable_utf8
+from secom.provenance import write_environment
 
 
 def main() -> None:
     enable_utf8()
     cfg = cfg_mod.load()
 
-    print("\n[1/3] 下載原始檔")
-    print("[2/3] 解析與合併")
+    print("\n[1/4] 下載原始檔")
+    print("[2/4] 解析與合併")
     df, prof = data_mod.build(cfg)
 
-    print("\n[3/3] 資料側寫")
+    print("\n[3/4] 資料側寫")
     labels = {
         "n_rows": "批次數",
         "n_features": "感測器特徵數",
@@ -48,6 +45,11 @@ def main() -> None:
             f"{v:.1f}" if key == "imbalance_ratio" else f"{v:,}" if isinstance(v, int) else v
         )
         print(f"  {label:<16} {shown}")
+
+    print("\n[4/4] 環境紀錄")
+    env = write_environment()
+    print(f"  python {env['python']} / {len(env['packages'])} 個直接相依")
+    print("  已寫出 reports/metrics/environment.json 與 requirements-lock.txt")
 
     out = cfg_mod.resolve("reports/metrics/data_profile.json")
     out.write_text(json.dumps(prof, indent=2, ensure_ascii=False), encoding="utf-8")

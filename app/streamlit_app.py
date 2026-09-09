@@ -9,12 +9,20 @@
 
 它的價值在於回答「如果成本假設不同會怎樣」—— 那是一個真正需要互動的問題，
 靜態報告答不了。
+
+資料來源刻意只用兩個小檔（都在版控裡）：
+    reports/metrics/scored_holdout.json   驗證／測試窗的標籤與校準後機率
+    reports/metrics/backtest.json         滾動回測的結論與不確定性
+
+不讀 models/fitted.pkl —— 那個檔 7.5 MB、含完整資料，而 data/ 與 models/ 都不進版控。
+這支 app 從頭到尾只需要 y 與 p 兩個陣列（下游全是 decision/evaluate 的純函式），
+所以任何人 clone 或任何託管平台都能直接跑起來，不必先訓練。
 """
 
 import json
 
 import altair as alt
-import joblib
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -29,17 +37,24 @@ ACTION_LABELS = {
 st.set_page_config(page_title='加驗成本評估 · SECOM', page_icon='🔬', layout='wide')
 
 
-@st.cache_resource
-def load_bundle():
-    path = config.resolve('models/fitted.pkl')
+@st.cache_data
+def load_holdout():
+    """讀評分後的驗證／測試窗。由 scripts/02_train.py 產生。"""
+    path = config.resolve('reports/metrics/scored_holdout.json')
     if not path.exists():
         return None
-    b = joblib.load(path)
-    m, s = b['models']['lgbm'], b['split']
+    d = json.loads(path.read_text(encoding='utf-8'))
     return dict(
-        split=s, shap=b['shap_ranking'],
-        p_val=m.predict_proba(s.X_val), p_test=m.predict_proba(s.X_test),
+        y_val=np.asarray(d['val']['y']), p_val=np.asarray(d['val']['p']),
+        y_test=np.asarray(d['test']['y']), p_test=np.asarray(d['test']['p']),
+        windows=d['windows'],
     )
+
+
+@st.cache_data
+def load_shap():
+    path = config.resolve('reports/metrics/shap_ranking.csv')
+    return pd.read_csv(path) if path.exists() else None
 
 
 @st.cache_data
@@ -51,7 +66,8 @@ def load_backtest():
 
 
 cfg = config.load()
-bundle = load_bundle()
+holdout = load_holdout()
+shap_ranking = load_shap()
 report = load_backtest()
 
 st.title('半導體不良品預測與加驗成本評估')
@@ -84,11 +100,14 @@ if report and 'dominance' in report:
 else:
     st.info('尚未產生滾動回測。請執行 `python scripts/04_backtest.py` 取得主結論。')
 
-if bundle is None:
-    st.error('請先執行 python scripts/02_train.py')
+if holdout is None:
+    st.error('缺少 reports/metrics/scored_holdout.json，請先執行 '
+             '`python scripts/02_train.py`。')
     st.stop()
 
-s, pv, pt = bundle['split'], bundle['p_val'], bundle['p_test']
+y_val, pv = holdout['y_val'], holdout['p_val']
+y_test, pt = holdout['y_test'], holdout['p_test']
+window = holdout['windows']['test']
 
 with st.sidebar:
     st.header('情境假設')
@@ -101,7 +120,7 @@ with st.sidebar:
     # 損益兩平盛行率：加驗開始划算的那條線。跟 secom/drift.py 的告警錨點同一個量。
     breakeven = ci / ce
     st.caption(f'損益兩平盛行率 p\\* = {breakeven:.2%}。測試窗實際盛行率 '
-               f'{s.y_test.mean():.2%} —— 盛行率在 p\\* 之上時，「全檢／按配額隨機加驗」'
+               f'{y_test.mean():.2%} —— 盛行率在 p\\* 之上時，「全檢／按配額隨機加驗」'
                '本身就已經優於不檢，模型必須再贏過它才有價值。')
 
     use_cap = st.checkbox('限制加驗產能', value=False)
@@ -113,19 +132,21 @@ with st.sidebar:
     st.caption('門檻與基準在驗證窗選定。假設被加驗的不良品全部可攔截，成本為示意值。')
 
 st.subheader('單次切分情境試算（報告附錄的那一個情境）')
+st.caption(f"測試窗 {window['from'][:10]} – {window['to'][:10]}："
+           f"{window['n']} 筆、{window['n_fail']} 筆 fail。")
 
 if kind == '絕對門檻':
-    selected = decision.optimal_threshold(s.y_val, pv, ci, ce, cap)
+    selected = decision.optimal_threshold(y_val, pv, ci, ce, cap)
     t = selected['threshold']
 else:
     fn = decision.robust_flag_rate if kind == '保守分位數' else decision.optimal_flag_rate
-    selected = fn(s.y_val, pv, ci, ce, cap)
+    selected = fn(y_val, pv, ci, ce, cap)
     t = decision.threshold_for_flag_rate(pt, selected['target_flag_rate'])
 if cap is not None:
     t = max(t, decision.threshold_for_flag_rate(pt, cap))
 
-policies = decision.policy_table(s.y_test, pt, t, ci, ce,
-                                 y_select=s.y_val, capacity_frac=cap)
+policies = decision.policy_table(y_test, pt, t, ci, ce,
+                                 y_select=y_val, capacity_frac=cap)
 row = policies[policies.index.str.startswith('模型導向')].iloc[0]
 
 a, b, c = st.columns(3)
@@ -140,7 +161,8 @@ c.metric('不良品攔截率', f'{row.catch_rate:.1%}',
 st.caption(
     f"事前選定的基準：{policies.attrs['baseline_name']}。"
     '分位數假設整段測試窗可一起排序；同分邊界一起排除，可能未用滿產能。'
-    '此窗只有 314 筆、17 筆 fail —— 這個百分比的解析度大約是「一筆不良品」的量級。'
+    f"此窗只有 {window['n']} 筆、{window['n_fail']} 筆 fail —— "
+    '這個百分比的解析度大約是「一筆不良品」的量級。'
 )
 if row['節省比例'] > 0 and row.flag_rate > 0.5:
     st.warning(
@@ -166,7 +188,7 @@ with left:
     st.caption('全檢若超過產能上限，只作參考，不作可行基準。')
 with right:
     st.markdown('**測試集模型品質**')
-    sc = evaluate.scores(s.y_test, pt)
+    sc = evaluate.scores(y_test, pt)
     st.dataframe(
         pd.DataFrame({
             '指標': ['PR-AUC', 'ROC-AUC', 'Brier', 'Recall@20%', 'lift@20%'],
@@ -179,7 +201,7 @@ with right:
                'Brier 同時反映校準與辨識能力，不能單獨證明校準良好。')
 
 st.subheader('成本比敏感度：每個比值都在驗證窗選門檻')
-sens = decision.sensitivity(s.y_test, pt, y_select=s.y_val, p_select=pv,
+sens = decision.sensitivity(y_test, pt, y_select=y_val, p_select=pv,
                             capacity_frac=cap).reset_index()
 long = sens.melt(id_vars='cost_ratio', value_vars=['cost_模型', 'cost_基準'],
                  var_name='策略', value_name='成本')
@@ -250,7 +272,10 @@ else:
     st.info('請執行 python scripts/04_backtest.py 產生跨時間窗比較。')
 
 with st.expander('SHAP 描述性特徵重要度'):
-    top = bundle['shap'].head(15)
+    if shap_ranking is None:
+        st.info('缺少 reports/metrics/shap_ranking.csv。')
+        st.stop()
+    top = shap_ranking.head(15)
     st.altair_chart(
         alt.Chart(top).mark_bar().encode(
             x='mean_abs_shap:Q', y=alt.Y('feature:N', sort='-x')),

@@ -1,4 +1,10 @@
 # 相容版本下限，非鎖版；目前驗證環境見 reports/metrics/environment.json
+#
+# 第一行的 "." 是給託管平台用的：Streamlit Community Cloud 只跑
+# pip install -r requirements.txt，不會跑 pip install -e .，
+# 少了它 app/streamlit_app.py 的 `import secom` 會失敗。
+# 本機開發請用 pip install -e ".[dev]"。
+.
 pandas>=2.2
 numpy>=2.0
 pyarrow>=17

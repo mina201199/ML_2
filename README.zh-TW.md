@@ -95,6 +95,13 @@ streamlit run app/streamlit_app.py
 
 儀表板的側邊欄改變單次切分試算，回測表則顯示設定檔成本的既有實驗。
 
+**儀表板可以單獨跑，不需要先訓練。** 它只讀兩個已進版控的小檔
+（`reports/metrics/scored_holdout.json` 約 20 KB，以及 `backtest.json`），
+不讀 7.5 MB 的 `models/fitted.pkl`，也不讀 `data/`。所以 clone 之後直接
+`streamlit run app/streamlit_app.py` 就會動 —— 這也是它能部署到託管平台的原因。
+`requirements.txt` 第一行的 `.` 就是為此：託管平台只跑 `pip install -r requirements.txt`，
+不會跑 `pip install -e .`。
+
 `requirements.txt` 是相容版本下限（意圖）；`requirements-lock.txt` 與 `reports/metrics/environment.json` 是本次驗證環境的實際版本（事實），兩者都由 `01_build_data.py` 從已安裝套件的中介資料產生，不手動維護。固定隨機種子有助重現，但不同套件版本與平台仍可能改變結果；不宣稱跨環境 byte-identical。
 
 ## 檔案導覽
@@ -106,6 +113,8 @@ streamlit run app/streamlit_app.py
 - `secom/drift.py`：盛行率體制判定、特徵 PSI 與重訓觸發規則。
 - `secom/sql.py`：DuckDB 側寫與前 20 筆歷史特徵。
 - `secom/provenance.py`：指標 JSON、環境紀錄與鎖版檔（「跑了什麼、在什麼環境」）。
+- `reports/metrics/scored_holdout.json`：驗證／測試窗的標籤與校準後機率。
+  儀表板只需要 y 與 p 兩個陣列（下游全是純函式），所以模型與資料不必進版控。
 - `secom/reporting.py`：把那些 JSON 渲染成報告（「怎麼說」）。每個 `_xxx_lines` 對應一個章節。
 - `app/streamlit_app.py`：互動試算。主結論固定置頂且直接讀 `backtest.json` 的 dominance，
   避免出現「報告說模型輸、儀表板說 +12.7%」的自相矛盾；側邊欄操作的是報告附錄那個單次切分情境。

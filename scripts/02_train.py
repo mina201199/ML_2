@@ -19,6 +19,7 @@ from secom import data as data_mod
 from secom import evaluate, models, plots
 from secom.console import enable_utf8
 from secom.pipeline import describe_reduction
+from secom.provenance import write_json
 
 
 def shap_ranking(model, X: pd.DataFrame) -> pd.DataFrame:
@@ -112,6 +113,40 @@ def main() -> None:
         {"models": fitted, "split": split, "shap_ranking": ranking},
         cfg_mod.resolve("models/fitted.pkl"),
     )
+
+    # ── 評分後的驗證／測試窗，供儀表板使用 ──
+    # 為什麼不讓儀表板直接讀 models/fitted.pkl：那個檔 7.5 MB、含完整資料，
+    # 而 data/ 與 models/ 都不進版控，所以託管環境上 app 會一開就找不到檔案。
+    #
+    # 儀表板從頭到尾只用到 y 與 p 兩個陣列（所有下游都是 decision/evaluate 的
+    # 純函式），根本不需要模型物件。所以只存分數，檔案小到可以進版控，
+    # 任何人 clone 或任何託管平台都能直接跑起來。
+    holdout = {
+        "model": "lgbm",
+        "calibrated": True,
+        "note": (
+            "Calibrated hold-out scores for the dashboard. The app needs only y and p; "
+            "the fitted model and the dataset stay out of version control."
+        ),
+        "windows": {
+            name: {
+                "n": int(len(getattr(split, f"y_{name}"))),
+                "n_fail": int(getattr(split, f"y_{name}").sum()),
+                "from": str(getattr(split, f"ts_{name}").min()),
+                "to": str(getattr(split, f"ts_{name}").max()),
+            }
+            for name in ("val", "test")
+        },
+        "val": {
+            "y": split.y_val.astype(int).tolist(),
+            "p": [round(float(v), 8) for v in lgbm.predict_proba(split.X_val)],
+        },
+        "test": {
+            "y": split.y_test.astype(int).tolist(),
+            "p": [round(float(v), 8) for v in lgbm.predict_proba(split.X_test)],
+        },
+    }
+    write_json("reports/metrics/scored_holdout.json", holdout)
     ranking.to_csv(cfg_mod.resolve("reports/metrics/shap_ranking.csv"), index=False)
     cfg_mod.resolve("reports/metrics/model_scores.json").write_text(
         json.dumps(

@@ -1,4 +1,5 @@
 {
+  "feature_protocol": "All 590 raw sensors; preceding 20 rows; no SHAP-based selection. Same-timestamp ties use input sequence.",
   "profile": [
     {
       "n_lots": 1567,
@@ -13,7 +14,7 @@
   ],
   "drift": [
     {
-      "week": "2008-07-14",
+      "week": "2008-07-14 00:00:00",
       "n_lots": 13,
       "n_fail": 3.0,
       "fail_rate": 0.2308,
@@ -21,7 +22,7 @@
       "fail_rate_ma4": 0.2308
     },
     {
-      "week": "2008-07-21",
+      "week": "2008-07-21 00:00:00",
       "n_lots": 21,
       "n_fail": 2.0,
       "fail_rate": 0.0952,
@@ -29,7 +30,7 @@
       "fail_rate_ma4": 0.163
     },
     {
-      "week": "2008-07-28",
+      "week": "2008-07-28 00:00:00",
       "n_lots": 48,
       "n_fail": 10.0,
       "fail_rate": 0.2083,
@@ -37,7 +38,7 @@
       "fail_rate_ma4": 0.1781
     },
     {
-      "week": "2008-08-04",
+      "week": "2008-08-04 00:00:00",
       "n_lots": 108,
       "n_fail": 14.0,
       "fail_rate": 0.1296,
@@ -45,7 +46,7 @@
       "fail_rate_ma4": 0.166
     },
     {
-      "week": "2008-08-11",
+      "week": "2008-08-11 00:00:00",
       "n_lots": 51,
       "n_fail": 7.0,
       "fail_rate": 0.1373,
@@ -53,7 +54,7 @@
       "fail_rate_ma4": 0.1426
     },
     {
-      "week": "2008-08-18",
+      "week": "2008-08-18 00:00:00",
       "n_lots": 208,
       "n_fail": 22.0,
       "fail_rate": 0.1058,
@@ -61,7 +62,7 @@
       "fail_rate_ma4": 0.1452
     },
     {
-      "week": "2008-08-25",
+      "week": "2008-08-25 00:00:00",
       "n_lots": 169,
       "n_fail": 7.0,
       "fail_rate": 0.0414,
@@ -69,7 +70,7 @@
       "fail_rate_ma4": 0.1035
     },
     {
-      "week": "2008-09-01",
+      "week": "2008-09-01 00:00:00",
       "n_lots": 133,
       "n_fail": 2.0,
       "fail_rate": 0.015,
@@ -77,7 +78,7 @@
       "fail_rate_ma4": 0.0749
     },
     {
-      "week": "2008-09-08",
+      "week": "2008-09-08 00:00:00",
       "n_lots": 95,
       "n_fail": 4.0,
       "fail_rate": 0.0421,
@@ -85,7 +86,7 @@
       "fail_rate_ma4": 0.0511
     },
     {
-      "week": "2008-09-15",
+      "week": "2008-09-15 00:00:00",
       "n_lots": 154,
       "n_fail": 5.0,
       "fail_rate": 0.0325,
@@ -93,7 +94,7 @@
       "fail_rate_ma4": 0.0328
     },
     {
-      "week": "2008-09-22",
+      "week": "2008-09-22 00:00:00",
       "n_lots": 166,
       "n_fail": 4.0,
       "fail_rate": 0.0241,
@@ -101,7 +102,7 @@
       "fail_rate_ma4": 0.0284
     },
     {
-      "week": "2008-09-29",
+      "week": "2008-09-29 00:00:00",
       "n_lots": 169,
       "n_fail": 15.0,
       "fail_rate": 0.0888,
@@ -109,7 +110,7 @@
       "fail_rate_ma4": 0.0469
     },
     {
-      "week": "2008-10-06",
+      "week": "2008-10-06 00:00:00",
       "n_lots": 138,
       "n_fail": 8.0,
       "fail_rate": 0.058,
@@ -117,7 +118,7 @@
       "fail_rate_ma4": 0.0508
     },
     {
-      "week": "2008-10-13",
+      "week": "2008-10-13 00:00:00",
       "n_lots": 94,
       "n_fail": 1.0,
       "fail_rate": 0.0106,
@@ -125,69 +126,688 @@
       "fail_rate_ma4": 0.0454
     }
   ],
-  "missingness_top": [
-    {
-      "feature": "f090",
-      "missing_frac": 0.0325,
-      "fail_when_missing": 0.0196,
-      "fail_when_present": 0.0679,
-      "gap": 0.0483
+  "drift_monitoring": {
+    "rule": "retrain when the prevalence Clopper-Pearson interval moves to the other side of the break-even prevalence c_inspect/c_escape, or when more than 10% of usable features have PSI > 0.25",
+    "breakeven_prevalence": 0.03333333333333333,
+    "reference_window": {
+      "n": 626,
+      "n_fail": 65,
+      "to": "2008-09-01 06:21:00"
     },
-    {
-      "feature": "f519",
-      "missing_frac": 0.4563,
-      "fail_when_missing": 0.0462,
-      "fail_when_present": 0.0833,
-      "gap": 0.0372
+    "alerts": [
+      {
+        "retrain": true,
+        "reasons": [
+          "輸入漂移：276/452 個特徵 PSI > 0.25（61.1% > 門檻 10%）"
+        ],
+        "reference_regime": {
+          "n": 626,
+          "n_fail": 65,
+          "prevalence": 0.10383386581469649,
+          "ci": [
+            0.08105424707332,
+            0.13042711817368594
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "inspect"
+        },
+        "current_regime": {
+          "n": 176,
+          "n_fail": 6,
+          "prevalence": 0.03409090909090909,
+          "ci": [
+            0.012611639731919234,
+            0.07272172723499275
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "undecided"
+        },
+        "action_flipped": false,
+        "input_drifted": true,
+        "psi_features_usable": 452,
+        "psi_features_major": 276,
+        "psi_share_major": 0.6106194690265486,
+        "psi_threshold_major": 0.25,
+        "psi_share_threshold": 0.1,
+        "psi_top": [
+          {
+            "feature": "f132",
+            "psi": 10.526371416680313
+          },
+          {
+            "feature": "f078",
+            "psi": 9.374815977748044
+          },
+          {
+            "feature": "f080",
+            "psi": 7.637058408172097
+          },
+          {
+            "feature": "f122",
+            "psi": 5.796633857260719
+          },
+          {
+            "feature": "f130",
+            "psi": 5.7907916729463045
+          },
+          {
+            "feature": "f331",
+            "psi": 5.744648056917888
+          },
+          {
+            "feature": "f127",
+            "psi": 5.663382845370382
+          },
+          {
+            "feature": "f129",
+            "psi": 5.506581065142862
+          },
+          {
+            "feature": "f290",
+            "psi": 5.312796237179296
+          },
+          {
+            "feature": "f319",
+            "psi": 4.743306551363179
+          }
+        ],
+        "fold": 1,
+        "eval_from": "2008-09-16 08:52:00",
+        "eval_to": "2008-09-23 15:23:00"
+      },
+      {
+        "retrain": true,
+        "reasons": [
+          "輸入漂移：291/452 個特徵 PSI > 0.25（64.4% > 門檻 10%）"
+        ],
+        "reference_regime": {
+          "n": 626,
+          "n_fail": 65,
+          "prevalence": 0.10383386581469649,
+          "ci": [
+            0.08105424707332,
+            0.13042711817368594
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "inspect"
+        },
+        "current_regime": {
+          "n": 176,
+          "n_fail": 6,
+          "prevalence": 0.03409090909090909,
+          "ci": [
+            0.012611639731919234,
+            0.07272172723499275
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "undecided"
+        },
+        "action_flipped": false,
+        "input_drifted": true,
+        "psi_features_usable": 452,
+        "psi_features_major": 291,
+        "psi_share_major": 0.6438053097345132,
+        "psi_threshold_major": 0.25,
+        "psi_share_threshold": 0.1,
+        "psi_top": [
+          {
+            "feature": "f078",
+            "psi": 10.157480669063009
+          },
+          {
+            "feature": "f129",
+            "psi": 8.4228990025634
+          },
+          {
+            "feature": "f080",
+            "psi": 7.878616373715273
+          },
+          {
+            "feature": "f570",
+            "psi": 5.403167691604207
+          },
+          {
+            "feature": "f059",
+            "psi": 5.064991286206777
+          },
+          {
+            "feature": "f124",
+            "psi": 4.995082818780415
+          },
+          {
+            "feature": "f126",
+            "psi": 4.974868450023877
+          },
+          {
+            "feature": "f132",
+            "psi": 4.898588140693844
+          },
+          {
+            "feature": "f130",
+            "psi": 4.838473765250202
+          },
+          {
+            "feature": "f539",
+            "psi": 4.806272363960297
+          }
+        ],
+        "fold": 2,
+        "eval_from": "2008-09-23 15:33:00",
+        "eval_to": "2008-10-01 07:19:00"
+      },
+      {
+        "retrain": true,
+        "reasons": [
+          "輸入漂移：316/452 個特徵 PSI > 0.25（69.9% > 門檻 10%）"
+        ],
+        "reference_regime": {
+          "n": 626,
+          "n_fail": 65,
+          "prevalence": 0.10383386581469649,
+          "ci": [
+            0.08105424707332,
+            0.13042711817368594
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "inspect"
+        },
+        "current_regime": {
+          "n": 176,
+          "n_fail": 17,
+          "prevalence": 0.09659090909090909,
+          "ci": [
+            0.0572801099257426,
+            0.15014486525315268
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "inspect"
+        },
+        "action_flipped": false,
+        "input_drifted": true,
+        "psi_features_usable": 452,
+        "psi_features_major": 316,
+        "psi_share_major": 0.6991150442477876,
+        "psi_threshold_major": 0.25,
+        "psi_share_threshold": 0.1,
+        "psi_top": [
+          {
+            "feature": "f132",
+            "psi": 9.783032815291387
+          },
+          {
+            "feature": "f078",
+            "psi": 9.202070302726954
+          },
+          {
+            "feature": "f080",
+            "psi": 7.621704448808723
+          },
+          {
+            "feature": "f562",
+            "psi": 6.043363890663199
+          },
+          {
+            "feature": "f487",
+            "psi": 5.669566357002735
+          },
+          {
+            "feature": "f406",
+            "psi": 5.585169549591332
+          },
+          {
+            "feature": "f565",
+            "psi": 5.497619541608533
+          },
+          {
+            "feature": "f539",
+            "psi": 5.411474636508367
+          },
+          {
+            "feature": "f564",
+            "psi": 5.399463503066061
+          },
+          {
+            "feature": "f568",
+            "psi": 5.341015465073638
+          }
+        ],
+        "fold": 3,
+        "eval_from": "2008-10-01 07:28:00",
+        "eval_to": "2008-10-07 08:25:00"
+      },
+      {
+        "retrain": true,
+        "reasons": [
+          "輸入漂移：339/452 個特徵 PSI > 0.25（75.0% > 門檻 10%）"
+        ],
+        "reference_regime": {
+          "n": 626,
+          "n_fail": 65,
+          "prevalence": 0.10383386581469649,
+          "ci": [
+            0.08105424707332,
+            0.13042711817368594
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "inspect"
+        },
+        "current_regime": {
+          "n": 178,
+          "n_fail": 4,
+          "prevalence": 0.02247191011235955,
+          "ci": [
+            0.006155999246478564,
+            0.05653492433932304
+          ],
+          "breakeven": 0.03333333333333333,
+          "regime": "undecided"
+        },
+        "action_flipped": false,
+        "input_drifted": true,
+        "psi_features_usable": 452,
+        "psi_features_major": 339,
+        "psi_share_major": 0.75,
+        "psi_threshold_major": 0.25,
+        "psi_share_threshold": 0.1,
+        "psi_top": [
+          {
+            "feature": "f080",
+            "psi": 8.96381065247137
+          },
+          {
+            "feature": "f247",
+            "psi": 8.099943953448479
+          },
+          {
+            "feature": "f519",
+            "psi": 8.085975302879891
+          },
+          {
+            "feature": "f487",
+            "psi": 8.00031732584436
+          },
+          {
+            "feature": "f116",
+            "psi": 7.724689064618353
+          },
+          {
+            "feature": "f385",
+            "psi": 7.411739117334986
+          },
+          {
+            "feature": "f112",
+            "psi": 6.0388914052406815
+          },
+          {
+            "feature": "f544",
+            "psi": 5.938891590821116
+          },
+          {
+            "feature": "f132",
+            "psi": 5.729002454503817
+          },
+          {
+            "feature": "f040",
+            "psi": 5.489042880485369
+          }
+        ],
+        "fold": 4,
+        "eval_from": "2008-10-07 08:26:00",
+        "eval_to": "2008-10-17 06:07:00"
+      }
+    ]
+  },
+  "ablation": {
+    "raw": {
+      "n_features": 590,
+      "summary": {
+        "n_folds": 4,
+        "saving_median": 0.10583645443196002,
+        "saving_q25": -0.037362742594484216,
+        "saving_q75": 0.28651960784313724,
+        "saving_min": -0.30113636363636376,
+        "saving_max": 0.6627450980392157,
+        "folds_profitable": 3,
+        "roc_auc_median": 0.4970259736946177,
+        "pr_auc_median": 0.08656797954016739,
+        "lift_at_20_median": 0.8627450980392156,
+        "folds_at_min_estimators": 1,
+        "catch_rate_median": 1.0,
+        "flag_rate_median": 0.9036963738508682,
+        "eval_lots_total": 706,
+        "eval_fails_total": 33,
+        "cost_per_lot": 2042.4929178470254,
+        "baseline_cost_per_lot": 2957.5070821529744,
+        "total_caught": 27,
+        "total_missed": 6,
+        "aggregate_catch_rate": 0.8181818181818182
+      },
+      "folds": [
+        {
+          "fold": 1,
+          "train_end": "2008-09-01 06:21:00",
+          "eval_from": "2008-09-16 08:52:00",
+          "eval_to": "2008-09-23 15:23:00",
+          "n_train": 626,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 65,
+          "n_fail_cal": 6,
+          "n_fail_eval": 6,
+          "threshold": 0.014213189707717214,
+          "target_flag_rate": 0.86,
+          "pr_auc": 0.6147817460317461,
+          "roc_auc": 0.85,
+          "recall_at_20": 0.8333333333333334,
+          "cost_model": 1715.909090909091,
+          "cost_none": 2045.4545454545455,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.1611111111111111,
+          "flag_rate": 0.8579545454545454,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2045.4545454545455,
+          "baseline_action": "inspect_none",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 6,
+          "missed": 0,
+          "calibration_from": "2008-09-01 06:52:00",
+          "calibration_to": "2008-09-16 08:50:00",
+          "lift_at_20": 4.074074074074074,
+          "escape_inflation": 1.9492615657078647,
+          "n_flagged": 151,
+          "n_estimators": 103,
+          "n_estimators_source": "CV mean-curve argmax"
+        },
+        {
+          "fold": 2,
+          "train_end": "2008-09-12 06:41:00",
+          "eval_from": "2008-09-23 15:33:00",
+          "eval_to": "2008-10-01 07:19:00",
+          "n_train": 802,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 69,
+          "n_fail_cal": 8,
+          "n_fail_eval": 6,
+          "threshold": 0.039401877708564244,
+          "target_flag_rate": 0.28,
+          "pr_auc": 0.02516397457054852,
+          "roc_auc": 0.25196078431372554,
+          "recall_at_20": 0.0,
+          "cost_model": 2602.2727272727275,
+          "cost_none": 2045.4545454545455,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": -0.30113636363636376,
+          "flag_rate": 0.2784090909090909,
+          "catch_rate": 0.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2000.0,
+          "baseline_action": "inspect_all",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 0,
+          "missed": 6,
+          "calibration_from": "2008-09-12 06:45:00",
+          "calibration_to": "2008-09-23 15:23:00",
+          "lift_at_20": 0.0,
+          "escape_inflation": 1.77966405284517,
+          "n_flagged": 49,
+          "n_estimators": 10,
+          "n_estimators_source": "CV mean-curve argmax"
+        },
+        {
+          "fold": 3,
+          "train_end": "2008-09-21 07:55:00",
+          "eval_from": "2008-10-01 07:28:00",
+          "eval_to": "2008-10-07 08:25:00",
+          "n_train": 978,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 76,
+          "n_fail_cal": 7,
+          "n_fail_eval": 17,
+          "threshold": 0.018974660275989305,
+          "target_flag_rate": 0.98,
+          "pr_auc": 0.14797198450978624,
+          "roc_auc": 0.5486496485386607,
+          "recall_at_20": 0.35294117647058826,
+          "cost_model": 1954.5454545454545,
+          "cost_none": 5795.454545454545,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.6627450980392157,
+          "flag_rate": 0.9772727272727273,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 5795.454545454545,
+          "baseline_action": "inspect_none",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 17,
+          "missed": 0,
+          "calibration_from": "2008-09-21 08:22:00",
+          "calibration_to": "2008-10-01 07:19:00",
+          "lift_at_20": 1.7254901960784312,
+          "escape_inflation": 1.8537816949267067,
+          "n_flagged": 172,
+          "n_estimators": 21,
+          "n_estimators_source": "CV mean-curve argmax"
+        },
+        {
+          "fold": 4,
+          "train_end": "2008-09-28 17:06:00",
+          "eval_from": "2008-10-07 08:26:00",
+          "eval_to": "2008-10-17 06:07:00",
+          "n_train": 1154,
+          "n_cal": 235,
+          "n_eval": 178,
+          "n_fail_train": 80,
+          "n_fail_cal": 20,
+          "n_fail_eval": 4,
+          "threshold": 0.03495539383122727,
+          "target_flag_rate": 0.9500000000000001,
+          "pr_auc": 0.02396994258696386,
+          "roc_auc": 0.4454022988505747,
+          "recall_at_20": 0.0,
+          "cost_model": 1898.876404494382,
+          "cost_none": 1348.314606741573,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.05056179775280896,
+          "flag_rate": 0.949438202247191,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2000.0,
+          "baseline_action": "inspect_all",
+          "cost_oracle_baseline": 1348.314606741573,
+          "caught": 4,
+          "missed": 0,
+          "calibration_from": "2008-09-28 17:49:00",
+          "calibration_to": "2008-10-07 08:25:00",
+          "lift_at_20": 0.0,
+          "escape_inflation": 1.4248776377224899,
+          "n_flagged": 169,
+          "n_estimators": 10,
+          "n_estimators_source": "min_estimators floor"
+        }
+      ]
     },
-    {
-      "feature": "f247",
-      "missing_frac": 0.4563,
-      "fail_when_missing": 0.0462,
-      "fail_when_present": 0.0833,
-      "gap": 0.0372
-    },
-    {
-      "feature": "f563",
-      "missing_frac": 0.1742,
-      "fail_when_missing": 0.0879,
-      "fail_when_present": 0.0618,
-      "gap": 0.0261
-    },
-    {
-      "feature": "f549",
-      "missing_frac": 0.1659,
-      "fail_when_missing": 0.0692,
-      "fail_when_present": 0.0658,
-      "gap": 0.0034
-    },
-    {
-      "feature": "f552",
-      "missing_frac": 0.1659,
-      "fail_when_missing": 0.0692,
-      "fail_when_present": 0.0658,
-      "gap": 0.0034
+    "all_sensor_history": {
+      "n_features": 1770,
+      "summary": {
+        "n_folds": 4,
+        "saving_median": 0.10713383838383836,
+        "saving_q25": 0.059784644194756556,
+        "saving_q75": 0.2722203654188948,
+        "saving_min": 0.022471910112359522,
+        "saving_max": 0.6627450980392157,
+        "folds_profitable": 4,
+        "roc_auc_median": 0.5042849898580122,
+        "pr_auc_median": 0.07296225511227528,
+        "lift_at_20_median": 0.40740740740740744,
+        "folds_at_min_estimators": 3,
+        "catch_rate_median": 1.0,
+        "flag_rate_median": 0.9630681818181819,
+        "eval_lots_total": 706,
+        "eval_fails_total": 33,
+        "cost_per_lot": 1881.0198300283287,
+        "baseline_cost_per_lot": 2957.5070821529744,
+        "total_caught": 30,
+        "total_missed": 3,
+        "aggregate_catch_rate": 0.9090909090909091
+      },
+      "folds": [
+        {
+          "fold": 1,
+          "train_end": "2008-09-01 06:21:00",
+          "eval_from": "2008-09-16 08:52:00",
+          "eval_to": "2008-09-23 15:23:00",
+          "n_train": 626,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 65,
+          "n_fail_cal": 6,
+          "n_fail_eval": 6,
+          "threshold": 0.024525570019939547,
+          "target_flag_rate": 0.9500000000000001,
+          "pr_auc": 0.03030954002421394,
+          "roc_auc": 0.38725490196078427,
+          "recall_at_20": 0.0,
+          "cost_model": 1897.7272727272727,
+          "cost_none": 2045.4545454545455,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.07222222222222223,
+          "flag_rate": 0.9488636363636364,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2045.4545454545455,
+          "baseline_action": "inspect_none",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 6,
+          "missed": 0,
+          "calibration_from": "2008-09-01 06:52:00",
+          "calibration_to": "2008-09-16 08:50:00",
+          "lift_at_20": 0.0,
+          "escape_inflation": 1.9492615657078647,
+          "n_flagged": 167,
+          "n_estimators": 30,
+          "n_estimators_source": "CV mean-curve argmax"
+        },
+        {
+          "fold": 2,
+          "train_end": "2008-09-12 06:41:00",
+          "eval_from": "2008-09-23 15:33:00",
+          "eval_to": "2008-10-01 07:19:00",
+          "n_train": 802,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 69,
+          "n_fail_cal": 8,
+          "n_fail_eval": 6,
+          "threshold": 0.03931349133005774,
+          "target_flag_rate": 0.35000000000000003,
+          "pr_auc": 0.20213153849517487,
+          "roc_auc": 0.5186274509803921,
+          "recall_at_20": 0.16666666666666666,
+          "cost_model": 1715.909090909091,
+          "cost_none": 2045.4545454545455,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.1420454545454545,
+          "flag_rate": 0.3465909090909091,
+          "catch_rate": 0.5,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2000.0,
+          "baseline_action": "inspect_all",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 3,
+          "missed": 3,
+          "calibration_from": "2008-09-12 06:45:00",
+          "calibration_to": "2008-09-23 15:23:00",
+          "lift_at_20": 0.8148148148148149,
+          "escape_inflation": 1.77966405284517,
+          "n_flagged": 61,
+          "n_estimators": 10,
+          "n_estimators_source": "min_estimators floor"
+        },
+        {
+          "fold": 3,
+          "train_end": "2008-09-21 07:55:00",
+          "eval_from": "2008-10-01 07:28:00",
+          "eval_to": "2008-10-07 08:25:00",
+          "n_train": 978,
+          "n_cal": 235,
+          "n_eval": 176,
+          "n_fail_train": 76,
+          "n_fail_cal": 7,
+          "n_fail_eval": 17,
+          "threshold": 0.027338268209408247,
+          "target_flag_rate": 0.98,
+          "pr_auc": 0.1156149702003366,
+          "roc_auc": 0.5667776544580096,
+          "recall_at_20": 0.17647058823529413,
+          "cost_model": 1954.5454545454545,
+          "cost_none": 5795.454545454545,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.6627450980392157,
+          "flag_rate": 0.9772727272727273,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 5795.454545454545,
+          "baseline_action": "inspect_none",
+          "cost_oracle_baseline": 2000.0,
+          "caught": 17,
+          "missed": 0,
+          "calibration_from": "2008-09-21 08:22:00",
+          "calibration_to": "2008-10-01 07:19:00",
+          "lift_at_20": 0.8627450980392156,
+          "escape_inflation": 1.8537816949267067,
+          "n_flagged": 172,
+          "n_estimators": 10,
+          "n_estimators_source": "min_estimators floor"
+        },
+        {
+          "fold": 4,
+          "train_end": "2008-09-28 17:06:00",
+          "eval_from": "2008-10-07 08:26:00",
+          "eval_to": "2008-10-17 06:07:00",
+          "n_train": 1154,
+          "n_cal": 235,
+          "n_eval": 178,
+          "n_fail_train": 80,
+          "n_fail_cal": 20,
+          "n_fail_eval": 4,
+          "threshold": 0.05270202149938523,
+          "target_flag_rate": 0.98,
+          "pr_auc": 0.02603114478114478,
+          "roc_auc": 0.48994252873563215,
+          "recall_at_20": 0.0,
+          "cost_model": 1955.056179775281,
+          "cost_none": 1348.314606741573,
+          "cost_all": 2000,
+          "saving_vs_best_baseline": 0.022471910112359522,
+          "flag_rate": 0.9775280898876404,
+          "catch_rate": 1.0,
+          "policy": "robust",
+          "model": "lgbm",
+          "cost_baseline": 2000.0,
+          "baseline_action": "inspect_all",
+          "cost_oracle_baseline": 1348.314606741573,
+          "caught": 4,
+          "missed": 0,
+          "calibration_from": "2008-09-28 17:49:00",
+          "calibration_to": "2008-10-07 08:25:00",
+          "lift_at_20": 0.0,
+          "escape_inflation": 1.4248776377224899,
+          "n_flagged": 174,
+          "n_estimators": 10,
+          "n_estimators_source": "min_estimators floor"
+        }
+      ]
     }
-  ],
-  "ablation": [
-    {
-      "特徵集": "原始 590 維",
-      "ROC-AUC 中位數": "0.524",
-      "PR-AUC 中位數": "0.075",
-      "節省中位數": "-12.6%",
-      "最差一折": "-30.7%",
-      "省錢折數": "2/4",
-      "每折 ROC": "[0.842, 0.252, 0.528, 0.519]"
-    },
-    {
-      "特徵集": "加上 80 個偏離特徵",
-      "ROC-AUC 中位數": "0.543",
-      "PR-AUC 中位數": "0.071",
-      "節省中位數": "-5.1%",
-      "最差一折": "-45.0%",
-      "省錢折數": "1/4",
-      "每折 ROC": "[0.841, 0.579, 0.506, 0.439]"
-    }
-  ],
-  "verdict": "時間偏離特徵未帶來可靠改善；ROC-AUC 中位數仍接近隨機。"
+  },
+  "limitation": "Exploratory ablation on reused evaluation windows; not independent confirmation."
 }

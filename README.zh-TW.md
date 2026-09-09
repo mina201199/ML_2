@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml)
 
+**▶ [互動試算頁](https://ruru0109lee-cpu.github.io/ML_2/)** — 不需安裝，點開就能改成本與產能假設看策略怎麼變
+
 [English](README.md) · [最新實驗報告](reports/executive_summary.md)
 
 這個機器學習專題研究：在不良品少、感測器多且資料分布隨時間改變的情況下，模型能否協助配置加驗資源。
@@ -86,6 +88,7 @@ python scripts/02_train.py
 python scripts/03_decide.py
 python scripts/04_backtest.py
 python scripts/05_sql_report.py
+python scripts/06_build_pages.py
 python -m pytest tests/
 ruff check .
 streamlit run app/streamlit_app.py

@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml)
 
+**▶ [Interactive cost explorer](https://ruru0109lee-cpu.github.io/ML_2/)** — no install; change the cost and capacity assumptions and watch the policy respond
+
 [繁體中文](README.zh-TW.md) · [Generated experiment report](reports/executive_summary.md)
 
 This project asks whether machine learning can allocate inspection resources when failures are rare, sensor measurements are numerous, and the data distribution changes over time.
@@ -86,6 +88,7 @@ python scripts/02_train.py
 python scripts/03_decide.py
 python scripts/04_backtest.py
 python scripts/05_sql_report.py
+python scripts/06_build_pages.py
 python -m pytest tests/
 ruff check .
 streamlit run app/streamlit_app.py

@@ -1,4 +1,4 @@
-# Semiconductor failure prediction and inspection cost evaluation
+# Is this model worth deploying — a cost-sensitive decision evaluation
 
 [![CI](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml)
 
@@ -6,11 +6,15 @@
 
 [繁體中文](README.zh-TW.md) · [Generated experiment report](reports/executive_summary.md)
 
-This project asks whether machine learning can allocate inspection resources when failures are rare, sensor measurements are numerous, and the data distribution changes over time.
+**The shape of the problem:** many items to screen, fewer than 5% of them actually bad (4.7% pooled across the four evaluation windows), a hard cap on how many can be checked, missing one costing **30×** what checking one costs, and a data distribution that drifts over time. Who should be checked first?
+
+That shape is not specific to semiconductors — it is inspection scheduling in manufacturing, AML alert triage and fraud review queues in banking, and screening triage in medicine. This project uses the public [UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) yield dataset as its vehicle.
+
+**Most projects ask whether a model is accurate; this one asks whether a model is worth using**: spend a limited inspection budget according to the model's scores, and does the total cost come in below using no model at all? That makes it a deployment decision rather than an accuracy contest — so the comparison set is "always inspect everything" and "sample at random", not another model.
 
 ## The finding, first
 
-**It cannot here — and the value of this project is that it quantifies why.**
+**It does not — and the value of this project is that it quantifies why.**
 
 Eighteen model × policy × capacity configurations were compared on identical future windows with walk-forward backtesting, against three fixed policies that use no model at all:
 

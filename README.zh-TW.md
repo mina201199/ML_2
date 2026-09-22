@@ -113,14 +113,18 @@ streamlit run app/streamlit_app.py
 
 | 項目 | 結果 |
 | --- | ---: |
-| clone 大小 | 2.1 MB |
-| `pip install -e ".[dev]"` | 81 秒 |
-| 01 → 06 整條流程（含 UCI 下載） | **41 秒** |
-| `pytest tests/` | 73 passed，13 秒 |
+| clone 大小 | 2.6 MB（工作檔 1.3 MB ＋ `.git` 1.3 MB） |
+| `pip install -e ".[dev]"` | 200 秒 —— 受下載速度支配，只當數量級看 |
+| 01 → 06 整條流程（含 UCI 下載） | **42 秒** |
+| `pytest tests/` | 73 passed，10 秒 |
 | `ruff check .` | 通過 |
 | dashboard `healthz` | 200，約 2 秒 |
 
-那次乾淨環境解析出來的套件版本有 9 / 13 個與原驗證環境不同，其中 pandas 跨了主版本（2.3.3 → 3.0.6）、scikit-learn 1.7.2 → 1.9.1 —— 而 `reports/executive_summary.md` 與原 repo **位元組完全相同**。這是一個觀察，不是保證：一次重現不足以支持跨版本穩定的宣稱，上面那句「不宣稱 byte-identical」仍然成立。
+這次乾淨環境同樣把多數直接相依解析成與記錄不同的版本（pandas 跨主版本到 3.0.6、scikit-learn 1.9.1、matplotlib 3.11.2），而 `reports/executive_summary.md` 同樣與已提交的版本**位元組完全相同**。
+
+**不相同的部分值得講精確**，否則「報告位元組相同」很容易被誤讀成一個比事實更強的宣稱。九張圖不同（換了 matplotlib，PNG 的位元組就不同）；`backtest.json`、`sql_ablation.json`、`model_scores.json` 合計 **42 個數值欄位有差，最大相對差 3.3 × 10⁻¹⁴**，全部是門檻與浮點指標。**沒有任何整數欄位改變** —— 攔截數、漏放數、窗大小、配置數全部一致，這才是每個離散結論都不受影響、而四捨五入後的報告會渲染成同一份的原因。
+
+這仍然是觀察，不是保證：兩次重現不足以支持跨版本穩定的宣稱，上面那句「不宣稱 byte-identical」仍然成立。
 
 ## 檔案導覽
 

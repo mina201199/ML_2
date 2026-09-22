@@ -114,14 +114,18 @@ Cloned from GitHub into a fresh virtualenv and run end to end with exactly the c
 
 | Step | Result |
 | --- | ---: |
-| Clone size | 2.1 MB |
-| `pip install -e ".[dev]"` | 81 s |
-| Scripts 01 → 06, including the UCI download | **41 s** |
-| `pytest tests/` | 73 passed, 13 s |
+| Clone size | 2.6 MB (1.3 MB working tree + 1.3 MB `.git`) |
+| `pip install -e ".[dev]"` | 200 s — download-bound, so treat it as an order of magnitude |
+| Scripts 01 → 06, including the UCI download | **42 s** |
+| `pytest tests/` | 73 passed, 10 s |
 | `ruff check .` | clean |
 | Dashboard `healthz` | 200 after ~2 s |
 
-That clean environment resolved 9 of 13 direct dependencies to different versions than the recorded one — pandas crossed a major version (2.3.3 → 3.0.6) and scikit-learn went 1.7.2 → 1.9.1 — and `reports/executive_summary.md` still came out **byte-identical** to the committed copy. That is an observation, not a guarantee: a single reproduction does not support a cross-version stability claim, so the sentence above still stands.
+That clean environment again resolved most direct dependencies to versions other than the recorded ones — pandas across a major version (3.0.6), scikit-learn 1.9.1, matplotlib 3.11.2 — and `reports/executive_summary.md` again came out **byte-identical** to the committed copy.
+
+What is *not* byte-identical is worth stating precisely, because the report being identical could otherwise be mistaken for a stronger claim than it is. The nine figures differ (a different matplotlib renders different PNG bytes), and across `backtest.json`, `sql_ablation.json` and `model_scores.json` **42 numeric fields differ — by at most 3.3 × 10⁻¹⁴ relative**, all of them thresholds and float metrics. **No integer field moves at all**: every interception count, escape count, window size and configuration count is identical, which is why every discrete conclusion survives and why the rounded report renders the same.
+
+That is still an observation, not a guarantee: two reproductions do not support a cross-version stability claim, so the sentence above stands.
 
 ## Limitations
 

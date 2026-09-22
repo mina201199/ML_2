@@ -136,8 +136,12 @@ streamlit run app/streamlit_app.py
 - `secom/reporting.py`：把那些 JSON 渲染成報告（「怎麼說」）。每個 `_xxx_lines` 對應一個章節。
 - `app/streamlit_app.py`：互動試算。主結論固定置頂且直接讀 `backtest.json` 的 dominance，
   避免出現「報告說模型輸、儀表板說 +12.7%」的自相矛盾；側邊欄操作的是報告附錄那個單次切分情境。
+- `scripts/06_build_pages.py`：把 `backtest.json` 與 `scored_holdout.json` 烘成一個零依賴的靜態頁。
+  網址從 `pyproject.toml` 的 `[project.urls]` 讀出來寫進 HTML，所以 repo 改名時不必手改前端。
+- `docs/index.html`：GitHub Pages 的互動試算頁（由 06 產生、進版控）。純前端、不需要 Python 環境 ——
+  作品集的連結要能讓人點一下就看到結果，不能先要求對方 clone 下來裝套件。
 - `tests/`：標籤隔離、前處理隔離、門檻選擇、零 fail、產能、保守策略退化、校準排序不變性、SQL 與漂移的回歸測試。
-- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 41 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
+- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 54 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
 
 程式碼慣例：註解與 docstring 用中文說明「為什麼這樣做」，圖表標籤與 JSON 鍵值用英文。行長上限 100，由 ruff 強制。
 
@@ -146,3 +150,7 @@ streamlit run app/streamlit_app.py
 優先取得新的未見時期資料、欄位時點語意與實際加驗成效，再做前瞻驗證。檢定力分析給出了具體的量：要偵測 AUC 0.60 需要約 69 筆 fail、1,468 筆觀測；AUC 0.55 則需要約 275 筆 fail、5,872 筆觀測。
 
 本次方法修正參考過舊回測，新增結果也不能當作全新獨立驗證。四折與少量不良品的結果不足以證明穩定泛化；**負面結果也不等於證明所有模型都沒有訊號** —— 它證明的是這個資料量、這個粒度、這組成本假設之下，這個問題無法被回答。
+
+## 授權
+
+MIT，見 [LICENSE](LICENSE)。UCI SECOM 原始資料不隨 repo 散布，由 `scripts/01_build_data.py` 從來源下載。

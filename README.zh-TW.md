@@ -96,6 +96,8 @@ streamlit run app/streamlit_app.py
 
 請依序執行。03 先寫單次切分報告（僅供對照，已降級為附錄），04 產生主結論與不確定性量化，05 再加入消融與漂移監控。整條流程約 40 秒。
 
+**Windows 請 clone 到短一點的路徑。** 路徑太深時，`pip install -e ".[dev]"` 會在解壓 Streamlit 時失敗，訊息是 `OSError: [Errno 2] No such file or directory`，結尾像 `streamlit/.agents/skills/.../dashboard-companies/streamlit_app.py`。那是 Windows 260 字元的 `MAX_PATH` 上限，不是這個專案的問題 —— Streamlit 內部的目錄夠深，clone 路徑一長就會超過。換到短路徑（例如 `C:\dev\secom`）是一步就好的解法；開啟 `LongPathsEnabled` 也可以，但要改登錄檔並重開機。
+
 儀表板的側邊欄改變單次切分試算，回測表則顯示設定檔成本的既有實驗。
 
 **儀表板可以單獨跑，不需要先訓練。** 它只讀兩個已進版控的小檔

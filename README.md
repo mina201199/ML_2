@@ -96,6 +96,8 @@ streamlit run app/streamlit_app.py
 
 Run scripts in order: 03 writes the single-split report (comparison only, now demoted to an appendix), 04 produces the headline conclusion and the uncertainty quantification, and 05 adds the ablation and drift monitoring. The whole pipeline takes about 40 seconds.
 
+**On Windows, clone to a short path.** `pip install -e ".[dev]"` can fail while unpacking Streamlit with `OSError: [Errno 2] No such file or directory` on a path ending in `streamlit/.agents/skills/.../dashboard-companies/streamlit_app.py`. That is the 260-character `MAX_PATH` limit, not a problem with this project — Streamlit ships files nested deeply enough that a long clone path pushes them over. Cloning somewhere shorter (`C:\dev\secom`) is the one-step fix; enabling `LongPathsEnabled` works too but needs a registry change and a reboot.
+
 The dashboard pins the walk-forward verdict to the top of the page, read straight from `backtest.json`, so it cannot contradict the report. Its sidebar controls drive the single-split appendix scenario; the rolling tables below show saved experiments at configuration-file costs, including the model-free reference policies.
 
 **The dashboard runs standalone — no training step required.** It reads two

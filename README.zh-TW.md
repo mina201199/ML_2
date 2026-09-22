@@ -116,7 +116,7 @@ streamlit run app/streamlit_app.py
 | clone 大小 | 2.1 MB |
 | `pip install -e ".[dev]"` | 81 秒 |
 | 01 → 06 整條流程（含 UCI 下載） | **41 秒** |
-| `pytest tests/` | 54 passed，11 秒 |
+| `pytest tests/` | 73 passed，13 秒 |
 | `ruff check .` | 通過 |
 | dashboard `healthz` | 200，約 2 秒 |
 
@@ -141,7 +141,10 @@ streamlit run app/streamlit_app.py
 - `docs/index.html`：GitHub Pages 的互動試算頁（由 06 產生、進版控）。純前端、不需要 Python 環境 ——
   作品集的連結要能讓人點一下就看到結果，不能先要求對方 clone 下來裝套件。
 - `tests/`：標籤隔離、前處理隔離、門檻選擇、零 fail、產能、保守策略退化、校準排序不變性、SQL 與漂移的回歸測試。
-- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 54 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
+  另外兩支守的是結論本身：`test_stats.py` 用解析解釘住 bootstrap 區間、置換檢定與
+  檢定力推算（含「平手不算勝出」這條慣例），`test_documented_counts.py` 讓文件裡
+  寫的測試數量無法再過期。
+- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 73 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
 
 程式碼慣例：註解與 docstring 用中文說明「為什麼這樣做」，圖表標籤與 JSON 鍵值用英文。行長上限 100，由 ruff 強制。
 

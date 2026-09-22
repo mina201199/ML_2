@@ -117,7 +117,7 @@ Cloned from GitHub into a fresh virtualenv and run end to end with exactly the c
 | Clone size | 2.1 MB |
 | `pip install -e ".[dev]"` | 81 s |
 | Scripts 01 → 06, including the UCI download | **41 s** |
-| `pytest tests/` | 54 passed, 11 s |
+| `pytest tests/` | 73 passed, 13 s |
 | `ruff check .` | clean |
 | Dashboard `healthz` | 200 after ~2 s |
 

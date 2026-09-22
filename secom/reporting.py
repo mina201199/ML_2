@@ -373,6 +373,8 @@ def _drift_lines() -> list[str]:
 
     ref = monitoring["reference_window"]
     breakeven = monitoring["breakeven_prevalence"]
+    usable = monitoring["alerts"][0]["psi_features_usable"]
+    n_features = _read("reports/metrics/data_profile.json")["n_features"]
     lines = [
         "## 漂移監控與重訓觸發", "",
         "一般的漂移偵測會說「分布變了就告警」。在這裡那是錯的關注點 —— 分布天天在變，"
@@ -386,6 +388,10 @@ def _drift_lines() -> list[str]:
         "的另一側，且與參考窗的判定不同。",
         f"2. PSI > {ab['drift_monitoring'].get('psi_threshold_major', 0.25)} 的特徵"
         "超過可用特徵的 10%。缺值自成一桶 —— 在製程資料裡「某站點當時沒量到」本身帶訊息。", "",
+        f"下表的分母 {usable} 是**在參考窗算得出 PSI 的特徵數**，不是感測器總數"
+        f"（{n_features}）。其餘 {n_features - usable} 欄在參考窗全缺值或零變異，"
+        "切不出兩個以上的分位邊界，PSI 是未定義而不是 0 —— 把它們當成「沒有漂移」"
+        "計進分母會系統性稀釋這個比例。", "",
         "**AUC 刻意不列為觸發條件。** 在 33 個正樣本的量級上可偵測的最小 AUC 約 0.64"
         "（見上一節），AUC 的抖動大於任何真實變化，拿它當觸發器只會製造假警報。", "",
         f"參考窗：{ref['n']:,} 筆、{ref['n_fail']} 筆 fail，截止於 {ref['to'][:10]}。"

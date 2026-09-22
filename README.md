@@ -30,7 +30,7 @@ Four quantitative results support the conclusion:
 
 ![Feasibility and required lift](reports/figures/feasibility.png)
 
-Drift analysis supplies the mechanism. Against the first fold's training window, the share of sensors with PSI > 0.25 rises monotonically across the four evaluation windows: **61% → 64% → 70% → 75%**. The model is not failing to learn; it is being asked to extrapolate onto distributions it never saw.
+Drift analysis supplies the mechanism. Against the first fold's training window, PSI is computable for 452 of the 590 sensors — the remaining 138 are entirely missing (16) or constant (122) in that window, so no quantile bins exist and their PSI is undefined rather than zero. Among those 452, the share drifting past PSI > 0.25 rises monotonically across the four evaluation windows: **61% → 64% → 70% → 75%**. The model is not failing to learn; it is being asked to extrapolate onto distributions it never saw.
 
 ![Rolling evaluation](reports/figures/backtest.png)
 

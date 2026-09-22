@@ -132,3 +132,7 @@ The power analysis gives concrete targets for what "more data" means: detecting 
 **A negative result here is not proof that no model can find signal.** It establishes that at this sample size, this granularity, and this set of cost assumptions, the question cannot be answered.
 
 See [the report](reports/executive_summary.md) for current findings and [the Chinese README](README.zh-TW.md) for the file map.
+
+## License
+
+MIT — see [LICENSE](LICENSE). The UCI SECOM data is not redistributed here; `scripts/01_build_data.py` downloads it from the source.

@@ -1,8 +1,8 @@
 # Semiconductor failure prediction and inspection cost evaluation
 
-[![CI](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml)
+[![CI](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml)
 
-**▶ [Interactive cost explorer](https://ruru0109lee-cpu.github.io/ML_2/)** — no install; change the cost and capacity assumptions and watch the policy respond
+**▶ [Interactive cost explorer](https://mina201199.github.io/secom-cost-sensitive-eval/)** — no install; change the cost and capacity assumptions and watch the policy respond
 
 [繁體中文](README.zh-TW.md) · [Generated experiment report](reports/executive_summary.md)
 

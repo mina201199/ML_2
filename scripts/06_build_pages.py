@@ -17,6 +17,7 @@ tests/test_pages_payload.py 驗證：它把 Python 的答案寫成對照表，
 from __future__ import annotations
 
 import json
+import tomllib
 
 from secom import config, decision
 from secom.console import enable_utf8
@@ -32,6 +33,20 @@ ACTION_LABELS = {
 # payload 區塊的邊界。用固定字串而不是正則貪婪比對，避免誤吃到頁面其他 script。
 OPEN = '<script id="payload" type="application/json">'
 CLOSE = "</script>"
+
+# footer 連結區塊的邊界
+LINKS_OPEN = "<!-- links:start"
+LINKS_CLOSE = "<!-- links:end -->"
+
+
+def project_urls() -> dict:
+    """從 pyproject.toml 讀出 repo 與 Pages 網址。
+
+    這是唯一真相來源。直接讀檔而不是讀已安裝套件的中介資料 ——
+    後者在改完 pyproject 但沒重新安裝時會是舊的，那正是要避免的失效模式。
+    """
+    with config.resolve("pyproject.toml").open("rb") as fh:
+        return tomllib.load(fh)["project"]["urls"]
 
 
 def build_payload() -> dict:
@@ -115,10 +130,41 @@ def write_page(payload: dict) -> None:
     path.write_text(html[:start] + blob + html[end:], encoding="utf-8")
 
 
+def write_links(urls: dict) -> None:
+    """把 footer 的連結從 pyproject 的網址生成。
+
+    刻意在建置時把 href 寫進 HTML，而不是用 JavaScript 設定 ——
+    連結在沒有 JS 的情況下也要能用（爬蟲、預覽、關掉 JS 的讀者）。
+    """
+    path = config.resolve(PAGE)
+    html = path.read_text(encoding="utf-8")
+    start = html.index(LINKS_OPEN)
+    end = html.index(LINKS_CLOSE, start) + len(LINKS_CLOSE)
+
+    repo = urls["Repository"].rstrip("/")
+    report = f"{repo}/blob/main/reports/executive_summary.md"
+    lines = [
+        f"{LINKS_OPEN} 由 scripts/06_build_pages.py 從 pyproject.toml 生成，不要手改 -->",
+        '  <p style="margin:0">',
+        f'    <a href="{repo}">原始碼與報告</a> ·',
+        f'    <a href="{report}">實驗報告</a> ·',
+        '    <a href="https://archive.ics.uci.edu/dataset/179/secom">資料來源 UCI SECOM</a>',
+        "  </p>",
+        f"  {LINKS_CLOSE}",
+    ]
+    path.write_text(
+        html[:start] + "\n".join(lines) + html[end:], encoding="utf-8"
+    )
+
+
 def main() -> None:
     enable_utf8()
+    urls = project_urls()
     payload = build_payload()
+    payload["repo_url"] = urls["Repository"].rstrip("/")
+    payload["pages_url"] = urls["Homepage"]
     write_page(payload)
+    write_links(urls)
 
     path = config.resolve(PAGE)
     size = path.stat().st_size
@@ -130,7 +176,10 @@ def main() -> None:
     print(f"  內嵌的 escape_inflation = {payload['escape_inflation']:.10f}")
     print(f"  回測配置 {len(payload['results'])} 個，"
           f"跨過零模型門檻 {sum(r['beats'] for r in payload['results'])} 個")
-    print("\n  GitHub Pages：repo Settings -> Pages -> Source 選 main 分支的 /docs\n")
+    print(f"  repo  {urls['Repository']}")
+    print(f"  pages {urls['Homepage']}")
+    print("\n  網址的唯一真相來源是 pyproject.toml 的 [project.urls]；"
+          "repo 改名時改那兩行再跑這一支即可。\n")
 
 
 if __name__ == "__main__":

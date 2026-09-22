@@ -1,8 +1,8 @@
 # 半導體不良品預測與加驗成本評估
 
-[![CI](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml/badge.svg)](https://github.com/ruru0109lee-cpu/ML_2/actions/workflows/ci.yml)
+[![CI](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml)
 
-**▶ [互動試算頁](https://ruru0109lee-cpu.github.io/ML_2/)** — 不需安裝，點開就能改成本與產能假設看策略怎麼變
+**▶ [互動試算頁](https://mina201199.github.io/secom-cost-sensitive-eval/)** — 不需安裝，點開就能改成本與產能假設看策略怎麼變
 
 [English](README.md) · [最新實驗報告](reports/executive_summary.md)
 

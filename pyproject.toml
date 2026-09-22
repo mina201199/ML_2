@@ -24,6 +24,14 @@ dependencies = [
     "joblib>=1.4",
 ]
 
+[project.urls]
+# 這裡是 repo 與 Pages 網址的唯一真相來源。
+# scripts/06_build_pages.py 從這裡讀出來寫進 docs/index.html，
+# tests/test_project_urls.py 檢查 README 與 docs 都沒有跟這裡脫節。
+# repo 改名時只需要改這兩行，再跑一次 06。
+Homepage = "https://mina201199.github.io/secom-cost-sensitive-eval/"
+Repository = "https://github.com/mina201199/secom-cost-sensitive-eval"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.12"]
 

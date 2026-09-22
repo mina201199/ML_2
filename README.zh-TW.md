@@ -105,7 +105,22 @@ streamlit run app/streamlit_app.py
 `requirements.txt` 第一行的 `.` 就是為此：託管平台只跑 `pip install -r requirements.txt`，
 不會跑 `pip install -e .`。
 
-`requirements.txt` 是相容版本下限（意圖）；`requirements-lock.txt` 與 `reports/metrics/environment.json` 是本次驗證環境的實際版本（事實），兩者都由 `01_build_data.py` 從已安裝套件的中介資料產生，不手動維護。固定隨機種子有助重現，但不同套件版本與平台仍可能改變結果；不宣稱跨環境 byte-identical。
+`requirements.txt` 是相容版本下限（意圖）；`requirements-lock.txt` 與 `reports/metrics/environment.json` 是本次驗證環境的實際版本（事實），兩者都由 `01_build_data.py` 從已安裝套件的中介資料產生，不手動維護。固定隨機種子有助重現，但不同套件版本與平台仍可能改變結果；**不宣稱**跨環境 byte-identical。
+
+### 乾淨環境實測
+
+從 GitHub clone 到全新 venv、照上面的指令跑到底，實測一次：
+
+| 項目 | 結果 |
+| --- | ---: |
+| clone 大小 | 2.1 MB |
+| `pip install -e ".[dev]"` | 81 秒 |
+| 01 → 06 整條流程（含 UCI 下載） | **41 秒** |
+| `pytest tests/` | 54 passed，11 秒 |
+| `ruff check .` | 通過 |
+| dashboard `healthz` | 200，約 2 秒 |
+
+那次乾淨環境解析出來的套件版本有 9 / 13 個與原驗證環境不同，其中 pandas 跨了主版本（2.3.3 → 3.0.6）、scikit-learn 1.7.2 → 1.9.1 —— 而 `reports/executive_summary.md` 與原 repo **位元組完全相同**。這是一個觀察，不是保證：一次重現不足以支持跨版本穩定的宣稱，上面那句「不宣稱 byte-identical」仍然成立。
 
 ## 檔案導覽
 

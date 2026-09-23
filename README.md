@@ -89,37 +89,37 @@ Six layers between two raw UCI files and a one-page static explorer anyone can o
 
 ```mermaid
 flowchart TB
-  subgraph S1["① Raw data — never committed; fetched from UCI by 01"]
-    A["secom.data<br/>590 sensors × 1,567 rows"]
-    B["secom_labels.data<br/>104 failures (6.6%) · 89-day span"]
+  subgraph S1["① Raw data · not in Git"]
+    A["secom.data"]
+    B["secom_labels.data"]
   end
 
-  subgraph S2["② Data layer · 01_build_data.py"]
-    C["secom.parquet<br/>4.5% missing · 116 constant columns"]
-    D["environment.json · requirements-lock.txt<br/>what ran, in which environment"]
+  subgraph S2["② Data · 01_build_data"]
+    C["secom.parquet"]
+    D["environment lock"]
   end
 
-  LOCK{{"🔒 Temporal boundary<br/>preprocessing / inner CV / calibration /<br/>threshold / SQL window — past of that fold only"}}
+  LOCK{{"🔒 Temporal boundary<br/>that fold's past only"}}
 
-  subgraph S3["③ Model layer · 02_train.py · single time split 60/20/20"]
-    E["Dummy · Logistic · LightGBM<br/>inner expanding-window CV picks trees · Platt"]
-    F["scored_holdout.json<br/>just the y and p arrays"]
+  subgraph S3["③ Model · 02_train"]
+    E["three models"]
+    F["scored_holdout.json"]
   end
 
-  subgraph S4["④ Decision layer · 04_backtest.py · 4 rolling origins (main evidence)"]
-    G["18 configurations<br/>3 models × 3 policies × 2 capacity regimes"]
-    H["3 model-free references<br/>inspect all · inspect none · random quota"]
-    I["bootstrap · permutation test · power<br/>→ dominance verdict"]
+  subgraph S4["④ Decision · 04_backtest ★"]
+    G["18 configs"]
+    H["3 model-free refs"]
+    I["dominance verdict"]
   end
 
-  subgraph S5["⑤ Monitoring and ablation · 05_sql_report.py · DuckDB"]
-    J["590 → 1,770 features<br/>deviations over the preceding 20 rows"]
-    K["PSI drift · prevalence regime · retrain trigger"]
+  subgraph S5["⑤ Monitoring · 05_sql_report"]
+    J["1,770-dim ablation"]
+    K["PSI drift · retrain"]
   end
 
-  subgraph S6["⑥ Delivery · 06_build_pages.py"]
-    L["docs/index.html<br/>dependency-free static explorer"]
-    M["app/streamlit_app.py<br/>reads two small JSON files"]
+  subgraph S6["⑥ Delivery · 06_build_pages"]
+    L["docs/index.html"]
+    M["streamlit_app.py"]
   end
 
   A --> C
@@ -146,6 +146,17 @@ The red cell is the tightest step in the pipeline. With 1,567 rows and 104 failu
 The rule now: every fold refits preprocessing, reruns the inner CV, recalibrates and reselects its threshold, using that fold's training window and nothing else; thresholds are fixed on the calibration window and priced on the **next** window; the SQL history window excludes the current row. `tests/test_no_leakage.py` guards that line, and CI downloads the raw UCI files precisely so those tests actually execute rather than being silently skipped when no data is present.
 
 Two deliberate choices in the drawing: **the three model-free references in ④ bypass the model layer entirely**, because they need no model — that is the whole point of the comparison. **`03_decide.py` is not drawn**: it covers a single split only and serves as an appendix, not as a source of conclusions.
+
+Detail deliberately kept out of the boxes, so the diagram is not scaled down past legibility:
+
+| Layer | Contents |
+| --- | --- |
+| ① | 590 sensors × 1,567 rows, 104 failures (6.6%), spanning 89 days |
+| ② | 4.5% of cells missing, 116 constant columns; `environment.json` and `requirements-lock.txt` emitted alongside |
+| ③ | Single time split 60/20/20; Dummy, Logistic, LightGBM; inner expanding-window CV picks the tree count, Platt calibration; `scored_holdout.json` holds only the y and p arrays |
+| ④ | 4 rolling origins; 18 configurations = 3 models × 3 policies × 2 capacity regimes; references are inspect-all, inspect-none and random-quota; the verdict rests on bootstrap, a permutation test and a power calculation |
+| ⑤ | DuckDB expands 590 columns into 1,770 (deviations over the preceding 20 rows); PSI drift, prevalence regime, retrain trigger |
+| ⑥ | The static page has no dependencies; the dashboard reads two small JSON files and needs neither the model nor the raw data |
 
 ## Reproduce
 

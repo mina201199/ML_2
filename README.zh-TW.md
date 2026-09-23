@@ -1,4 +1,6 @@
-# 模型值不值得上線 —— 一次成本敏感的部署決策評估
+# 從 AUC 到部署決策：半導體品質檢查的成本敏感評估
+
+> 在類別不平衡、檢查產能受限與資料漂移下，模型真的比全檢或隨機抽檢更省成本嗎？
 
 [![CI](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml)
 

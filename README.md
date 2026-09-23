@@ -1,4 +1,6 @@
-# Is this model worth deploying — a cost-sensitive decision evaluation
+# Beyond AUC: Cost-Sensitive Deployment Evaluation for Semiconductor Quality Inspection
+
+> Under class imbalance, limited inspection capacity, and distribution drift, can a model beat full inspection or random sampling on total cost?
 
 [![CI](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/mina201199/secom-cost-sensitive-eval/actions/workflows/ci.yml)
 

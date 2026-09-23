@@ -42,7 +42,7 @@
 
 ## 資料與業務假設
 
-[UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) 提供 1,567 筆觀測，原始感測器檔有 590 欄，104 筆 fail。欄位匿名，且存在缺值。UCI 網頁的欄位數描述與原始檔不同，本專案以實際解析檔案及測試檢查為準。
+[UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) 提供 1,567 筆觀測，原始感測器檔有 590 欄，104 筆 fail。欄位匿名；4.5% 的儲存格是缺值，另有 116 欄在全體資料上零變異。UCI 網頁的欄位數描述與原始檔不同，本專案以實際解析檔案及測試檢查為準。
 
 資料標籤是廠內測試結果，並非客戶端退貨。把一筆觀測視為一個可獨立加驗單位、加驗必定攔截被選中的不良品，以及加驗 2,000／漏放 60,000 TWD，都是情境假設。真實部署還需確認感測器在決策時已可取得。
 
@@ -147,17 +147,6 @@ flowchart TB
 
 兩個刻意的畫法：**④ 的三個零模型對照不經過模型層**，因為它們完全不需要模型——這正是主結論的比較基準。**`03_decide.py` 沒有畫進去**，它只處理單次時間切分，是對照用的附錄而非結論來源。
 
-圖上刻意留白的細節，補在這裡（格子塞滿字會讓整張圖被縮到讀不了）：
-
-| 層 | 內容 |
-| --- | --- |
-| ① | 590 個感測器 × 1,567 列，104 個 fail（6.6%），橫跨 89 天 |
-| ② | parquet 有 4.5% 缺值、116 欄零變異；同時產出 `environment.json` 與 `requirements-lock.txt` |
-| ③ | 單次時序切分 60/20/20；Dummy、Logistic、LightGBM；內層擴張窗 CV 決定棵數，Platt 校準；`scored_holdout.json` 只存 y 與 p 兩個陣列 |
-| ④ | 滾動原點 4 折；18 配置 = 3 模型 × 3 策略 × 2 產能；對照是永遠全檢／永遠不檢／隨機配額；dominance 由 bootstrap、置換檢定與檢定力支撐 |
-| ⑤ | DuckDB 把 590 維擴成 1,770 維（前 20 列的歷史偏離）；PSI 漂移、盛行率體制判定、重訓觸發規則 |
-| ⑥ | 靜態頁零依賴、點連結就能用；儀表板只讀兩個小 JSON，不需要模型檔與原始資料 |
-
 ## 重現
 
 ```bash
@@ -197,9 +186,11 @@ streamlit run app/streamlit_app.py
 | clone 大小 | 2.6 MB（工作檔 1.3 MB ＋ `.git` 1.3 MB） |
 | `pip install -e ".[dev]"` | 200 秒 —— 受下載速度支配，只當數量級看 |
 | 01 → 06 整條流程（含 UCI 下載） | **42 秒** |
-| `pytest tests/` | 73 passed，10 秒 |
+| `pytest tests/` | 76 passed，10 秒 |
 | `ruff check .` | 通過 |
 | dashboard `healthz` | 200，約 2 秒 |
+
+表中的計時全部來自當時那一次 clean clone。測試數在那之後因為新增架構圖的守門測試而上升，計時沒有重測 —— 數量是程式碼的性質、與環境無關，秒數則不是。
 
 這次乾淨環境同樣把多數直接相依解析成與記錄不同的版本（pandas 跨主版本到 3.0.6、scikit-learn 1.9.1、matplotlib 3.11.2），而 `reports/executive_summary.md` 同樣與已提交的版本**位元組完全相同**。
 
@@ -229,7 +220,7 @@ streamlit run app/streamlit_app.py
   另外兩支守的是結論本身：`test_stats.py` 用解析解釘住 bootstrap 區間、置換檢定與
   檢定力推算（含「平手不算勝出」這條慣例），`test_documented_counts.py` 讓文件裡
   寫的測試數量無法再過期。
-- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 73 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
+- `.github/workflows/ci.yml`：ruff 加全套測試。CI 會下載 UCI 原始檔 —— 76 個測試裡有 13 個需要資料，而那 13 個正好是全部的洩漏防護測試，沒有資料的 CI 只是一個綠色徽章。
 
 程式碼慣例：註解與 docstring 用中文說明「為什麼這樣做」，圖表標籤與 JSON 鍵值用英文。行長上限 100，由 ruff 強制。
 

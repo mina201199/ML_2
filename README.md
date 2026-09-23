@@ -42,7 +42,7 @@ The generated report is the single source for current numbers, assumptions and l
 
 ## Data and assumptions
 
-[UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) contains 1,567 observations and 104 failures. The raw sensor file has 590 columns; the repository validates the parsed file rather than relying on the differing column count in UCI's page description.
+[UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) contains 1,567 observations and 104 failures. The raw sensor file has 590 columns, of which 116 are constant across the dataset, and 4.5% of all cells are missing; the repository validates the parsed file rather than relying on the differing column count in UCI's page description.
 
 Labels describe in-house pass/fail tests, not observed customer escapes. Treating each observation as an independently inspectable unit, perfect interception of inspected failures, and costs of TWD 2,000 per inspection and TWD 60,000 per escape are scenario assumptions. Sensor availability at the intended decision time requires confirmation.
 
@@ -147,16 +147,6 @@ The rule now: every fold refits preprocessing, reruns the inner CV, recalibrates
 
 Two deliberate choices in the drawing: **the three model-free references in ④ bypass the model layer entirely**, because they need no model — that is the whole point of the comparison. **`03_decide.py` is not drawn**: it covers a single split only and serves as an appendix, not as a source of conclusions.
 
-Detail deliberately kept out of the boxes, so the diagram is not scaled down past legibility:
-
-| Layer | Contents |
-| --- | --- |
-| ① | 590 sensors × 1,567 rows, 104 failures (6.6%), spanning 89 days |
-| ② | 4.5% of cells missing, 116 constant columns; `environment.json` and `requirements-lock.txt` emitted alongside |
-| ③ | Single time split 60/20/20; Dummy, Logistic, LightGBM; inner expanding-window CV picks the tree count, Platt calibration; `scored_holdout.json` holds only the y and p arrays |
-| ④ | 4 rolling origins; 18 configurations = 3 models × 3 policies × 2 capacity regimes; references are inspect-all, inspect-none and random-quota; the verdict rests on bootstrap, a permutation test and a power calculation |
-| ⑤ | DuckDB expands 590 columns into 1,770 (deviations over the preceding 20 rows); PSI drift, prevalence regime, retrain trigger |
-| ⑥ | The static page has no dependencies; the dashboard reads two small JSON files and needs neither the model nor the raw data |
 
 ## Reproduce
 
@@ -198,9 +188,11 @@ Cloned from GitHub into a fresh virtualenv and run end to end with exactly the c
 | Clone size | 2.6 MB (1.3 MB working tree + 1.3 MB `.git`) |
 | `pip install -e ".[dev]"` | 200 s — download-bound, so treat it as an order of magnitude |
 | Scripts 01 → 06, including the UCI download | **42 s** |
-| `pytest tests/` | 73 passed, 10 s |
+| `pytest tests/` | 76 passed, 10 s |
 | `ruff check .` | clean |
 | Dashboard `healthz` | 200 after ~2 s |
+
+Every timing in the table comes from that one clean clone. The test count has risen since, with the addition of the architecture-diagram guards; the timings were not re-measured — a count is a property of the code and independent of the environment, a duration is not.
 
 That clean environment again resolved most direct dependencies to versions other than the recorded ones — pandas across a major version (3.0.6), scikit-learn 1.9.1, matplotlib 3.11.2 — and `reports/executive_summary.md` again came out **byte-identical** to the committed copy.
 

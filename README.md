@@ -23,43 +23,43 @@ Eighteen model × policy × capacity configurations were compared on identical f
 | Unconstrained | Always inspect everything | **2,000** | majority/robust\* | 2,000 | **0 / 9** |
 | At most 20% inspected | Random at the same quota | **2,644** | lgbm/threshold | 2,677 | **0 / 9** |
 
-\* Read that cell carefully: `majority` is a zero-information DummyClassifier whose conservative policy degenerates to inspecting 100%, so that 2,000 *is* full inspection wearing a model's name — it ties the model-free reference rather than beating it (the verdict uses a strict inequality). Every configuration that actually uses ranking is more expensive: the cheapest LightGBM configuration in the unconstrained regime is `lgbm/robust` at 2,042.
+\* `majority` is a zero-information DummyClassifier whose conservative policy degenerates to inspecting 100%, so that 2,000 *is* full inspection wearing a model's name — a tie, not a win (the verdict uses a strict inequality). Every configuration that actually ranks is dearer; the cheapest is `lgbm/robust` at 2,042.
 
 Four quantitative results support the conclusion:
 
-- **The bar can be computed in advance.** With R = escape cost ÷ inspection cost and p = prevalence, whenever p·R ≥ 1 (here 1.40) the condition for a model to add value reduces to **lift > 1** — at the same inspection quota, the model's selection must be denser in failures than random sampling. The measured median lift@20% across four windows is **0.86**.
+- **The bar can be computed in advance.** With R = escape ÷ inspection cost and p = prevalence, whenever p·R ≥ 1 (here 1.40) the condition for a model to add value reduces to **lift > 1**: at the same quota its selection must be denser in failures than random sampling. Measured median across four windows, **0.86**.
 - **Permutation test p = 0.52.** The flagged set is indistinguishable in cost from a random set at the same quota.
 - **The 95% bootstrap interval for the cost difference straddles zero** (relative saving −23.5% to +15.9%), and the model is cheaper in only 43.6% of resamples.
-- **This design cannot see a small signal in the first place.** With 33 positives the minimum detectable ROC-AUC is **0.644**; the measured value sits near 0.5, so it neither establishes nor refutes usefulness — it establishes that the sample size cannot answer the question. Detecting AUC 0.60 needs roughly 69 failures (2.1×).
+- **This design cannot see a small signal at all.** With 33 positives the minimum detectable ROC-AUC is **0.644** and the measured value sits near 0.5 — neither establishing nor refuting usefulness, but establishing that the sample size cannot answer the question. Detecting AUC 0.60 needs roughly 69 failures (2.1×).
 
 ![Feasibility and required lift](reports/figures/feasibility.png)
 
-Drift analysis supplies the mechanism. Against the first fold's training window, PSI is computable for 452 of the 590 sensors — the remaining 138 are entirely missing (16) or constant (122) in that window, so no quantile bins exist and their PSI is undefined rather than zero. Among those 452, the share drifting past PSI > 0.25 rises monotonically across the four evaluation windows: **61% → 64% → 70% → 75%**. The model is not failing to learn; it is being asked to extrapolate onto distributions it never saw.
+The mechanism is drift. Against the first fold's training window, PSI is computable for 452 of the 590 sensors (the other 138 are entirely missing — 16 — or constant — 122 — in that window, so no quantile bins exist and PSI is undefined rather than zero). Among those 452, the share past PSI > 0.25 rises monotonically across the four windows: **61% → 64% → 70% → 75%**. The model is not failing to learn; it is being asked to extrapolate onto distributions it never saw.
 
 ![Rolling evaluation](reports/figures/backtest.png)
 
-The generated report is the single source for current numbers, assumptions and limitations. The previous +12.4% and 8.7:1 claims are superseded.
+All numbers are script-generated; [the report](reports/executive_summary.md) is the single source. The previous +12.4% and 8.7:1 claims are superseded.
 
 ## Data and assumptions
 
 [UCI SECOM](https://archive.ics.uci.edu/dataset/179/secom) contains 1,567 observations and 104 failures. The raw sensor file has 590 columns, of which 116 are constant across the dataset, and 4.5% of all cells are missing; the repository validates the parsed file rather than relying on the differing column count in UCI's page description.
 
-Labels describe in-house pass/fail tests, not observed customer escapes. Treating each observation as an independently inspectable unit, perfect interception of inspected failures, and costs of TWD 2,000 per inspection and TWD 60,000 per escape are scenario assumptions. Sensor availability at the intended decision time requires confirmation.
+Labels are in-house pass/fail tests, not observed customer escapes. Four things are scenario assumptions: one observation equals one independently inspectable unit, inspection always intercepts a selected failure, TWD 2,000 per inspection, TWD 60,000 per escape. Sensor availability at decision time still needs confirmation.
 
 **The cost assumption itself sets the difficulty.** At 2,000 : 60,000 we get p·R = 1.40 > 1, which places the scenario in the region where a model only has to beat random sampling — the most permissive region available to it. It did not.
 
 ## Evaluation protocol
 
 - Chronological outer windows. Preprocessing and LightGBM bin construction are fitted separately inside each inner training fold.
-- Final tree count is selected by the mean inner validation AUC curve. Earlier OOF calibration predictions use a tree count fixed in advance, avoiding retrospective hyperparameter selection for those predictions.
+- Final tree count comes from the mean inner validation AUC curve. Earlier OOF calibration predictions use a count fixed in advance, so later labels cannot tune them retrospectively.
 - Calibration and decision selection share a calibration window; scores on that window are not independent results. Performance is measured in the next window.
 - Each cost ratio selects a threshold on validation and measures its cost on future observations. There is no test-optimized deployment break-even claim.
-- Three models, three policies, and two capacity regimes share identical future windows. Feasible baselines are selected using calibration labels, not evaluation labels.
+- Three models, three policies and two capacity regimes share identical future windows. Baselines are picked from calibration labels, never evaluation labels.
 - **That prospectively selected baseline can pick wrong**, so the headline conclusion is measured against fixed model-free policies instead — they never get the chance to pick wrong, which makes them harder to argue with.
 - Retain zero-failure windows for cost evaluation, mark undefined metrics as null, and include remaining observations in the final fold.
 - The SQL ablation creates historical deviations for all sensors; it does not select sensors using test-set SHAP rankings.
 
-Quantile decisions assume that the entire decision batch is available for ranking. This is not an online, one-observation-at-a-time simulation. Boundary ties are excluded together, so capacity may be underused. Historical SQL features use the preceding 20 rows; tied timestamps follow input sequence, assumed available operationally.
+Quantile decisions assume a whole batch is available for ranking, so this is batch allocation rather than one-observation-at-a-time deployment; boundary ties are excluded together, so capacity may be underused. SQL history uses the preceding 20 rows, with tied timestamps in input order.
 
 ## Disclosed because it will be asked
 
@@ -141,11 +141,9 @@ flowchart TB
   style LOCK fill:#ffe3e3,stroke:#e03131,stroke-width:3px,color:#111
 ```
 
-The red cell is the tightest step in the pipeline. With 1,567 rows and 104 failures, any leak of future information into training is enough to flip the conclusion — and the most common cheat in cost-sensitive work is exactly this one: choosing the threshold on the test set. This repo did it once, and the earlier deployment break-even claim was withdrawn because of it.
+The red cell is the tightest step in the pipeline. With 1,567 rows and 104 failures, any leak of future information into training is enough to flip the conclusion — and the most common cheat in cost-sensitive work is exactly this one: choosing the threshold on the test set. This repo did it once, and the earlier deployment break-even claim was withdrawn because of it. The eight rules above are what that cell contains; `tests/test_no_leakage.py` guards them, and CI downloads the raw UCI files so those tests actually run instead of being silently skipped.
 
-The rule now: every fold refits preprocessing, reruns the inner CV, recalibrates and reselects its threshold, using that fold's training window and nothing else; thresholds are fixed on the calibration window and priced on the **next** window; the SQL history window excludes the current row. `tests/test_no_leakage.py` guards that line, and CI downloads the raw UCI files precisely so those tests actually execute rather than being silently skipped when no data is present.
-
-Two deliberate choices in the drawing: **the three model-free references in ④ bypass the model layer entirely**, because they need no model — that is the whole point of the comparison. **`03_decide.py` is not drawn**: it covers a single split only and serves as an appendix, not as a source of conclusions.
+Two deliberate choices: **the three model-free references bypass the model layer**, because they need no model — that is the whole point of the comparison; and **`03_decide.py` is not drawn**, being a single-split appendix rather than a source of conclusions.
 
 
 ## Reproduce
@@ -163,21 +161,13 @@ ruff check .
 streamlit run app/streamlit_app.py
 ```
 
-Run scripts in order: 03 writes the single-split report (comparison only, now demoted to an appendix), 04 produces the headline conclusion and the uncertainty quantification, and 05 adds the ablation and drift monitoring. The whole pipeline takes about 40 seconds.
+Run in order: 03 writes the single-split appendix, 04 produces the headline conclusion and the uncertainty quantification, 05 adds the ablation and drift monitoring. About 40 seconds end to end.
 
-**On Windows, clone to a short path.** `pip install -e ".[dev]"` can fail while unpacking Streamlit with `OSError: [Errno 2] No such file or directory` on a path ending in `streamlit/.agents/skills/.../dashboard-companies/streamlit_app.py`. That is the 260-character `MAX_PATH` limit, not a problem with this project — Streamlit ships files nested deeply enough that a long clone path pushes them over. Cloning somewhere shorter (`C:\dev\secom`) is the one-step fix; enabling `LongPathsEnabled` works too but needs a registry change and a reboot.
+**On Windows, clone to a short path.** `pip install -e ".[dev]"` can fail while unpacking Streamlit with `OSError: [Errno 2] No such file or directory`. That is the 260-character `MAX_PATH` limit, not a problem with this project — Streamlit ships files nested deeply enough that a long clone path pushes them over. Cloning somewhere shorter (`C:\dev\secom`) fixes it in one step.
 
-The dashboard pins the walk-forward verdict to the top of the page, read straight from `backtest.json`, so it cannot contradict the report. Its sidebar controls drive the single-split appendix scenario; the rolling tables below show saved experiments at configuration-file costs, including the model-free reference policies.
+**The dashboard runs standalone — no training step required.** It reads two small version-controlled files (`scored_holdout.json`, about 20 KB, plus `backtest.json`) rather than the 7.5 MB `models/fitted.pkl`, and never touches `data/` — so a fresh clone runs it immediately, which is also what makes it deployable to a hosted platform (the leading `.` in `requirements.txt` exists for that). It pins the walk-forward verdict to the top of the page, read straight from `backtest.json`, so it cannot contradict the report; the sidebar drives the single-split appendix scenario.
 
-**The dashboard runs standalone — no training step required.** It reads two
-small version-controlled files (`reports/metrics/scored_holdout.json`, about
-20 KB, plus `backtest.json`) rather than the 7.5 MB `models/fitted.pkl`, and it
-never touches `data/`. A fresh clone can run `streamlit run app/streamlit_app.py`
-immediately, which is also what makes it deployable to a hosted platform. The
-leading `.` in `requirements.txt` exists for that: hosted platforms run only
-`pip install -r requirements.txt`, never `pip install -e .`.
-
-`requirements.txt` states compatible lower bounds (intent); `requirements-lock.txt` and `reports/metrics/environment.json` record the actual validated versions (fact). Both are generated by `01_build_data.py` from installed package metadata rather than maintained by hand. Fixed seeds aid reproducibility, but byte-identical outputs across versions and platforms are **not** guaranteed.
+`requirements.txt` states compatible lower bounds (intent); `requirements-lock.txt` and `environment.json` record the validated versions (fact), both generated by `01_build_data.py` from installed package metadata rather than maintained by hand. Fixed seeds aid reproducibility, but byte-identical output across versions and platforms is **not** claimed.
 
 ### Measured from a clean clone
 
@@ -192,19 +182,15 @@ Cloned from GitHub into a fresh virtualenv and run end to end with exactly the c
 | `ruff check .` | clean |
 | Dashboard `healthz` | 200 after ~2 s |
 
-Every timing in the table comes from that one clean clone. The test count has risen since, with the addition of the architecture-diagram guards; the timings were not re-measured — a count is a property of the code and independent of the environment, a duration is not.
+Every timing comes from that one clean clone; the count has risen since, with the architecture-diagram guards, and the timings were not re-measured (a count is a property of the code, a duration is not). That environment resolved most dependencies to versions other than the recorded ones — pandas across a major version (3.0.6), scikit-learn 1.9.1, matplotlib 3.11.2 — and `reports/executive_summary.md` still came out **byte-identical** to the committed copy.
 
-That clean environment again resolved most direct dependencies to versions other than the recorded ones — pandas across a major version (3.0.6), scikit-learn 1.9.1, matplotlib 3.11.2 — and `reports/executive_summary.md` again came out **byte-identical** to the committed copy.
-
-What is *not* byte-identical is worth stating precisely, because the report being identical could otherwise be mistaken for a stronger claim than it is. The nine figures differ (a different matplotlib renders different PNG bytes), and across `backtest.json`, `sql_ablation.json` and `model_scores.json` **42 numeric fields differ — by at most 3.3 × 10⁻¹⁴ relative**, all of them thresholds and float metrics. **No integer field moves at all**: every interception count, escape count, window size and configuration count is identical, which is why every discrete conclusion survives and why the rounded report renders the same.
-
-That is still an observation, not a guarantee: two reproductions do not support a cross-version stability claim, so the sentence above stands.
+What is *not* byte-identical is worth stating precisely, or the identical report could be read as a stronger claim than it is. The nine figures differ (a different matplotlib renders different PNG bytes), and across the three metric JSONs **42 numeric fields differ — by at most 3.3 × 10⁻¹⁴ relative**, all thresholds and float metrics. **No integer field moves at all**: every interception count, escape count, window size and configuration count is identical, which is why every discrete conclusion survives. That is an observation, not a guarantee — two reproductions do not support a cross-version stability claim.
 
 ## Limitations
 
-Four windows and few positive examples provide limited evidence. The methodology changes were informed by earlier results on these same observations; they need confirmation on a genuinely unseen period. OOF and final estimators also differ in training size and tree count, so calibration transfer remains a limitation.
+Four windows and few positives are limited evidence, and the methodology changes were informed by earlier results on these same observations, so they need confirmation on a genuinely unseen period. OOF and final estimators also differ in training size and tree count, so calibration transfer remains a limitation.
 
-The power analysis gives concrete targets for what "more data" means: detecting AUC 0.60 needs roughly 69 failures across 1,468 observations; AUC 0.55 needs roughly 275 failures across 5,872. Obtain decision-time feature definitions, real costs, and inspection effectiveness before prospective validation.
+The power analysis makes "more data" concrete: detecting AUC 0.60 needs roughly 69 failures across 1,468 observations, AUC 0.55 roughly 275 across 5,872. Obtain decision-time feature definitions, real costs and inspection effectiveness before prospective validation.
 
 **A negative result here is not proof that no model can find signal.** It establishes that at this sample size, this granularity, and this set of cost assumptions, the question cannot be answered.
 

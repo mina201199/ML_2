@@ -83,6 +83,70 @@ Quantile decisions assume that the entire decision batch is available for rankin
 
 SHAP describes model dependence on anonymous columns, not causality or actionable manufacturing settings.
 
+## Architecture
+
+Six layers between two raw UCI files and a one-page static explorer anyone can open. The red cell is the leakage boundary.
+
+```mermaid
+flowchart TB
+  subgraph S1["① Raw data — never committed; fetched from UCI by 01"]
+    A["secom.data<br/>590 sensors × 1,567 rows"]
+    B["secom_labels.data<br/>104 failures (6.6%) · 89-day span"]
+  end
+
+  subgraph S2["② Data layer · 01_build_data.py"]
+    C["secom.parquet<br/>4.5% missing · 116 constant columns"]
+    D["environment.json · requirements-lock.txt<br/>what ran, in which environment"]
+  end
+
+  LOCK{{"🔒 Temporal boundary<br/>preprocessing / inner CV / calibration /<br/>threshold / SQL window — past of that fold only"}}
+
+  subgraph S3["③ Model layer · 02_train.py · single time split 60/20/20"]
+    E["Dummy · Logistic · LightGBM<br/>inner expanding-window CV picks trees · Platt"]
+    F["scored_holdout.json<br/>just the y and p arrays"]
+  end
+
+  subgraph S4["④ Decision layer · 04_backtest.py · 4 rolling origins (main evidence)"]
+    G["18 configurations<br/>3 models × 3 policies × 2 capacity regimes"]
+    H["3 model-free references<br/>inspect all · inspect none · random quota"]
+    I["bootstrap · permutation test · power<br/>→ dominance verdict"]
+  end
+
+  subgraph S5["⑤ Monitoring and ablation · 05_sql_report.py · DuckDB"]
+    J["590 → 1,770 features<br/>deviations over the preceding 20 rows"]
+    K["PSI drift · prevalence regime · retrain trigger"]
+  end
+
+  subgraph S6["⑥ Delivery · 06_build_pages.py"]
+    L["docs/index.html<br/>dependency-free static explorer"]
+    M["app/streamlit_app.py<br/>reads two small JSON files"]
+  end
+
+  A --> C
+  B --> C
+  C -.-> D
+  C --> LOCK
+  LOCK --> E
+  LOCK --> G
+  LOCK --> J
+  E --> F
+  G --> I
+  H --> I
+  J --> K
+  I --> L
+  F --> L
+  I --> M
+  F --> M
+
+  style LOCK fill:#ffe3e3,stroke:#e03131,stroke-width:3px,color:#111
+```
+
+The red cell is the tightest step in the pipeline. With 1,567 rows and 104 failures, any leak of future information into training is enough to flip the conclusion — and the most common cheat in cost-sensitive work is exactly this one: choosing the threshold on the test set. This repo did it once, and the earlier deployment break-even claim was withdrawn because of it.
+
+The rule now: every fold refits preprocessing, reruns the inner CV, recalibrates and reselects its threshold, using that fold's training window and nothing else; thresholds are fixed on the calibration window and priced on the **next** window; the SQL history window excludes the current row. `tests/test_no_leakage.py` guards that line, and CI downloads the raw UCI files precisely so those tests actually execute rather than being silently skipped when no data is present.
+
+Two deliberate choices in the drawing: **the three model-free references in ④ bypass the model layer entirely**, because they need no model — that is the whole point of the comparison. **`03_decide.py` is not drawn**: it covers a single split only and serves as an appendix, not as a source of conclusions.
+
 ## Reproduce
 
 ```bash

@@ -83,6 +83,70 @@
 
 SHAP 是描述性分析，不能回推出匿名感測器的實體意義或因果。
 
+## 架構
+
+從 UCI 的兩個原始檔到一頁能改假設的靜態試算頁，中間六層。紅色那一格是防洩漏的核心。
+
+```mermaid
+flowchart TB
+  subgraph S1["① 原始資料 —— 不進 Git，由 01 從 UCI 下載"]
+    A["secom.data<br/>590 感測器 × 1,567 列"]
+    B["secom_labels.data<br/>104 fail（6.6%）· 橫跨 89 天"]
+  end
+
+  subgraph S2["② 資料層 · 01_build_data.py"]
+    C["secom.parquet<br/>缺值 4.5% · 116 欄零變異"]
+    D["environment.json · requirements-lock.txt<br/>跑了什麼、在什麼環境"]
+  end
+
+  LOCK{{"🔒 時序邊界<br/>前處理／內層 CV／校準／門檻／SQL 窗<br/>一律只用該折的過去"}}
+
+  subgraph S3["③ 模型層 · 02_train.py · 單次時序切分 60/20/20"]
+    E["Dummy · Logistic · LightGBM<br/>內層擴張窗 CV 決定棵數 · Platt 校準"]
+    F["scored_holdout.json<br/>只有 y 與 p 兩個陣列"]
+  end
+
+  subgraph S4["④ 決策層 · 04_backtest.py · 滾動原點 4 折（主證據）"]
+    G["18 配置<br/>3 模型 × 3 策略 × 2 產能"]
+    H["3 個零模型對照<br/>永遠全檢 · 永遠不檢 · 隨機配額"]
+    I["bootstrap · 置換檢定 · 檢定力<br/>→ dominance 判定"]
+  end
+
+  subgraph S5["⑤ 監控與消融 · 05_sql_report.py · DuckDB"]
+    J["590 → 1,770 特徵<br/>前 20 列歷史偏離"]
+    K["PSI 漂移 · 盛行率體制 · 重訓觸發"]
+  end
+
+  subgraph S6["⑥ 交付 · 06_build_pages.py"]
+    L["docs/index.html<br/>零依賴靜態試算頁"]
+    M["app/streamlit_app.py<br/>只讀兩個小 JSON"]
+  end
+
+  A --> C
+  B --> C
+  C -.-> D
+  C --> LOCK
+  LOCK --> E
+  LOCK --> G
+  LOCK --> J
+  E --> F
+  G --> I
+  H --> I
+  J --> K
+  I --> L
+  F --> L
+  I --> M
+  F --> M
+
+  style LOCK fill:#ffe3e3,stroke:#e03131,stroke-width:3px,color:#111
+```
+
+紅框那一格是整條流程最緊的地方。只有 1,567 列、104 個 fail，任何一點未來資訊漏進訓練都足以讓結論翻面 —— 而成本敏感的專案最常見的作弊，正是拿測試集去挑門檻。這個 repo 犯過，舊版的部署損益兩平宣稱已經因此撤掉。
+
+現在的規則是：每一折重新 fit 前處理、重新跑內層 CV、重新校準、重新選門檻，全部只用該折的訓練窗；門檻在校準窗定案、只在**下一個**時間窗計價；SQL 的歷史特徵窗不含當前列。這條線由 `tests/test_no_leakage.py` 守著，而 CI 一定要下載 UCI 原始檔，就是為了讓那批測試真的跑得到、而不是在沒有資料時被安靜跳過。
+
+兩個刻意的畫法：**④ 的三個零模型對照不經過模型層**，因為它們完全不需要模型——這正是主結論的比較基準。**`03_decide.py` 沒有畫進去**，它只處理單次時間切分，是對照用的附錄而非結論來源。
+
 ## 重現
 
 ```bash

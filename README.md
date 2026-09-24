@@ -6,6 +6,10 @@
 
 **▶ [Interactive cost explorer](https://mina201199.github.io/secom-cost-sensitive-eval/)** — no install; change the cost and capacity assumptions and watch the policy respond
 
+[![30-second demo video](docs/demo-poster.png)](https://mina201199.github.io/secom-cost-sensitive-eval/demo.mp4)
+
+*30-second demo (Traditional Chinese captions): change the cost assumptions, add a capacity cap, then see the rolling backtest where none of the 18 configurations clears the bar.*
+
 [繁體中文](README.zh-TW.md) · [Generated experiment report](reports/executive_summary.md)
 
 **The shape of the problem:** many items to screen, fewer than 5% of them actually bad (4.7% pooled across the four evaluation windows), a hard cap on how many can be checked, missing one costing **30×** what checking one costs, and a data distribution that drifts over time. Who should be checked first?

@@ -6,6 +6,10 @@
 
 **▶ [互動試算頁](https://mina201199.github.io/secom-cost-sensitive-eval/)** — 不需安裝，點開就能改成本與產能假設看策略怎麼變
 
+[![30 秒 demo 影片](docs/demo-poster.png)](https://mina201199.github.io/secom-cost-sensitive-eval/demo.mp4)
+
+*30 秒 demo：改成本假設、加上產能限制，再看滾動回測 18 個配置沒有一個跨過門檻。*
+
 [English](README.md) · [最新實驗報告](reports/executive_summary.md)
 
 **問題的形狀：** 要篩的東西很多、真正有問題的不到 5%（四個評估窗合計 4.7%）、能動用的檢查量有上限、漏掉一個的代價是查一個的 **30 倍**，而且資料分布會隨時間漂移。誰該優先被檢查？
